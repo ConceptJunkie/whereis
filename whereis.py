@@ -72,7 +72,7 @@ import win32file
 #//******************************************************************************
 
 PROGRAM_NAME = "whereis"
-VERSION = "3.9.3"
+VERSION = "3.9.4"
 COPYRIGHT_MESSAGE = "copyright (c) 2013 (1997), Rick Gutleber (rickg@his.com)"
 
 currentDir = ""
@@ -251,10 +251,14 @@ revision history:
            since it doesn't need to be erased
     3.9.3: stdout is redirected when it's being piped, so that change didn't
            work so well
+    3.9.4: I stopped using reprlib correctly... probably a long time ago.
 
     Known bugs:
         - As of 3.9.2, stdout from an executed command (/c) doesn't show up
         - As of 3.9.2 /es doesn't do the same thing as /e /s
+        - The original intent was to never have output wrap (according to /Ll
+          or the default of 80), but this never took into account extra
+          columns being output.
 ''' )
 
 
@@ -586,7 +590,7 @@ def main( ):
     fileSizeFormat = str( fileSizeLength ) + formatString
 
     fileNameRepr = reprlib.Repr( )
-    fileNameRepr = lineLength - 1    # sets max string length of repr
+    fileNameRepr.maxstring = lineLength - 1    # sets max string length of repr
 
     #redirected = not sys.stdout.isatty( )
 
@@ -728,9 +732,9 @@ def main( ):
                     outputDirTotalStats( absoluteFileName, fileSize, lineCount )
 
                     if outputRelativePath:
-                        print( repr( relativeFileName ).replace( '\\\\', '\\' )[ 1 : -1 ] )
+                        print( fileNameRepr.repr( relativeFileName ).replace( '\\\\', '\\' )[ 1 : -1 ] )
                     else:
-                        print( repr( absoluteFileName ).replace( '\\\\', '\\' )[ 1 : -1 ] )
+                        print( fileNameRepr.repr( absoluteFileName ).replace( '\\\\', '\\' )[ 1 : -1 ] )
 
             foundOne = True
 
