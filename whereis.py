@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+import codecs
 from datetime import datetime
 import fnmatch
 import locale
@@ -20,14 +21,19 @@ import re
 #//**********************************************************************
 
 PROGRAM_NAME = "whereis"
-VERSION = "3.2.0"
+VERSION = "3.5.0"
 COPYRIGHT_MESSAGE = "copyright (c) 2012 (1997), Rick Gutleber (rickg@his.com)"
 
 currentDir = ""
 currentDirCount = 1
 blankLine = ""
 
-lineLength = 80
+defaultLineLength = 80                   
+defaultFileCountLength = 9
+defaultLineCountLength = 9
+defaultFileSizeLength = 14 
+
+lineLength = 0
 
 outputLock = threading.Lock( )
 
@@ -121,6 +127,8 @@ revision history:
     3.2.0 : added -1 back
     3.3.0 : added !d, !D, !t, !T, !b, !c, !x, !p, !P, !/, !n, and !0 
     3.4.0 : changed -l to -L, added -l
+    3.5.0 : changed -L to -Ll, added -Lf, -Ln, -Lz, plus lots of bug fixing, 
+            better exception handling
 ''' )
 
 
@@ -180,8 +188,8 @@ def statusProcess( ):
 def main( ):
     global currentDir
     global currentDirCount
-    global lineLength
     global blankLine
+    global lineLength
 
     parser = argparse.ArgumentParser( prog=PROGRAM_NAME, description=PROGRAM_NAME + ' - ' + VERSION + ' - ' + COPYRIGHT_MESSAGE )
 
@@ -193,8 +201,12 @@ def main( ):
     parser.add_argument( '-e', '--output_dir_totals', action='store_true' )
     parser.add_argument( '-E', '--output_dir_totals_only', action='store_true' )
     parser.add_argument( '-i', '--include_filespec', action='append', nargs="+" )
-    parser.add_argument( '-L', '--line_length', type=int, default=80 )
     parser.add_argument( '-l', '--count_lines', action='store_true' )
+    parser.add_argument( '-Lf', '--file_count_length', type=int, default=defaultFileCountLength )
+    parser.add_argument( '-Ll', '--line_length', type=int, default=defaultLineLength )
+    parser.add_argument( '-Ln', '--line_count_length', type=int, default=defaultLineCountLength )
+    parser.add_argument( '-Lz', '--file_size_length', type=int, default=defaultFileSizeLength )
+    parser.add_argument( '-m', '--no_commas', action='store_true' )
 #    parser.add_argument( '-n', '--recurse_levels', type=int, default=0 )
     parser.add_argument( '-r', '--output_relative_path', action='store_true' )
 #    parser.add_argument( '-R', '--rename', choices='dmnsu' )
@@ -231,7 +243,11 @@ def main( ):
     else:
         excludeFileSpecs = args.exclude_filespec[ 0 ]
 
+    fileCountLength = args.file_count_length
+    fileSizeLength = args.file_size_length
+    lineCountLength = args.line_count_length
     lineLength = args.line_length
+
     countLines = args.count_lines
 
     outputDirTotalsOnly = args.output_dir_totals_only
@@ -246,8 +262,17 @@ def main( ):
 
     printCommandOnly = args.print_command_only
 
+    if args.no_commas:
+        formatString = 'd'
+    else:
+        formatString = ',d'            
+
+    fileCountFormat = str( fileCountLength ) + formatString
+    lineCountFormat = str( lineCountLength ) + formatString
+    fileSizeFormat = str( fileSizeLength ) + formatString
+
     fileNameRepr = reprlib.Repr( )
-    fileNameRepr = lineLength - 1
+    fileNameRepr = lineLength - 1    # sets max string length of repr
 
     #print( "sourceDir: " + sourceDir )
     #print( "fileSpec: " + fileSpec )
@@ -312,17 +337,16 @@ def main( ):
         createdBackupDir = ( top == '.' )
 
         for fileName in sorted( fileSet, key=str.lower ):
-            fullpath = os.path.join( top, fileName )
+            absoluteFileName = os.path.join( os.path.abspath( top ), fileName )
+            relativeFileName = os.path.join( top, fileName )
 
-            fileSize = os.stat( fullpath ).st_size
+            fileSize = os.stat( absoluteFileName ).st_size
             dirTotal = dirTotal + fileSize
             fileCount += 1
 
             if executeCommand != '':
                 translatedCommand = executeCommand
 
-                absoluteFileName = os.path.join( os.path.abspath( top ), fileName )
-                relativeFileName = os.path.join( top, fileName )
                 base, extension = os.path.splitext( fileName )
                 extension = extension.strip( )  # unix puts in a newline supposedly
                 absolutePathName = os.path.dirname( absoluteFileName )
@@ -360,7 +384,10 @@ def main( ):
 
             if countLines:
                 lineCount = 0
-                for line in open( fileName ).xreadlines(  ): lineCount += 1
+
+                for line in codecs.open( absoluteFileName, 'rU', 'ascii', 'replace'  ): 
+                    lineCount += 1
+
                 lineTotal = lineTotal + lineCount
 
             if backupLocation != '':
@@ -369,35 +396,39 @@ def main( ):
                     print( 'mkdir -p "' + backupTargetDir + '" > NUL ' )
                     createdBackupDir = True
 
-                backupTargetFile = os.path.join( backupLocation, fileName )
-                print( 'copy "' + fileName + '" "' + backupTargetFile + '" > NUL ' )
+                backupTargetFile = os.path.join( backupLocation, relativeFileName )
+                print( 'copy "' + absoluteFileName + '" "' + backupTargetFile + '" > NUL ' )
 
             if not outputDirTotalsOnly:
-                print( blankLine, end='' )
-
-                printDate = False
-
-                if outputTimestamp == 'a':
-                    out_date = datetime.fromtimestamp( round( os.stat( fullpath ).st_atime, 0 ) )
-                    printDate = True
-                elif outputTimestamp == 'c':
-                    out_date = datetime.fromtimestamp( round( os.stat( fullpath ).st_ctime, 0 ) )
-                    printDate = True
-                elif outputTimestamp == 'm':
-                    out_date = datetime.fromtimestamp( round( os.stat( fullpath ).st_mtime, 0 ) )
-                    printDate = True
-
                 with outputLock:
+                    print( blankLine, end='' )
+
+                    printDate = False
+
+                    if outputTimestamp == 'a':
+                        out_date = datetime.fromtimestamp( round( os.stat( absoluteFileName ).st_atime, 0 ) )
+                        printDate = True
+                    elif outputTimestamp == 'c':
+                        out_date = datetime.fromtimestamp( round( os.stat( absoluteFileName ).st_ctime, 0 ) )
+                        printDate = True
+                    elif outputTimestamp == 'm':
+                        out_date = datetime.fromtimestamp( round( os.stat( absoluteFileName ).st_mtime, 0 ) )
+                        printDate = True
+
                     if printDate:
-                        print( out_date.isoformat( microsecond=0 ), end='' )
+                        print( out_date.isoformat( ' ' ), end=' ' )
 
                     if outputFileSize:
-                        print( format( fileSize, '14,d' ), end=' ' )
+                        print( format( fileSize, fileSizeFormat ), end=' ' )
 
                     if countLines: 
-                        print( format( lineCount, '6,d' ), end=' ' )
+                        print( format( lineCount, lineCountFormat ), end=' ' )
 
-                    print( os.path.join( currentDir, repr( fileName )[ 1 : -1 ] ) )
+                    #print( os.path.join( currentDir, repr( fileName )[ 1 : -1 ] ) )
+                    if outputRelativePath:
+                        print( repr( relativeFileName ).replace( '\\\\', '\\' )[ 1 : -1 ] )
+                    else:
+                        print( repr( absoluteFileName ).replace( '\\\\', '\\' )[ 1 : -1 ] )
 
             foundOne = True
 
@@ -407,10 +438,10 @@ def main( ):
         if outputDirTotals or outputDirTotalsOnly:
             with outputLock:
                 print( blankLine, end='' )
-                print( format( dirTotal, '14,d' ), end=' ' )
+                print( format( dirTotal, fileSizeFormat ), end=' ' )
 
                 if countLines: 
-                    print( format( dirLineTotal, '6,d' ), end=' ' )
+                    print( format( dirLineTotal, lineCountFormat ), end=' ' )
 
                 print( currentDir )
 
@@ -425,23 +456,31 @@ def main( ):
     if outputTotals:
         with outputLock:
             print( blankLine, end='' )
-            print( '--------------', end=' ' )
+
+            if printDate:
+                print( '                    ', end='' )            
+
+            if outputFileSize: 
+                print( '-' * fileSizeLength, end=' ' )
 
             if countLines:
-                print( '------', end=' ' )
+                print( '-' * lineCountLength, end=' ' )
 
-            print( '-----', end=' ' )
+            print( '-' * fileCountLength )
 
-            print( '-------------- -----' )
-            print( format( grandDirTotal, '14,d' ), end=' ' )
+            if printDate:
+                print( '                    ', end='' )            
+
+            if outputFileSize: 
+                print( format( grandDirTotal, fileSizeFormat ), end=' ' )
 
             if countLines:
-                print( format( grandLineTotal, '6,d' ), end=' ' )
+                print( format( grandLineTotal, lineCountFormat ), end=' ' )
 
             if outputDirTotalsOnly:
-                print( format( currentDirCount, ',d' ) )
+                print( format( currentDirCount, fileCountFormat ) )
             else:
-                print( format( fileCount, ',d' ) )
+                print( format( fileCount, fileCountFormat ) )
 
 
 #//**********************************************************************
@@ -451,10 +490,12 @@ def main( ):
 #//**********************************************************************
 
 if __name__ == '__main__':
-    #try:
-    main( )
-    #except:
-    #    pass
+    try:
+        main( )
+    except KeyboardInterrupt: 
+        pass
+    finally:
+        stopEvent.set( )            
 
     stopEvent.set( )
     print( ' ' * ( lineLength - 1 ) + '\r', end='\r', file=sys.stderr )   # clear the status output
