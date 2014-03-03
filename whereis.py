@@ -16,6 +16,7 @@ import time
 import re
 import win32con
 import win32file
+#import win32_helper
 
 
 #import fnmatch
@@ -71,11 +72,11 @@ import win32file
 #//
 #//******************************************************************************
 
-PROGRAM_NAME = "whereis"
-VERSION = "3.9.4"
-COPYRIGHT_MESSAGE = "copyright (c) 2013 (1997), Rick Gutleber (rickg@his.com)"
+PROGRAM_NAME = 'whereis'
+VERSION = '3.9.5'
+COPYRIGHT_MESSAGE = 'copyright (c) 2013 (1997), Rick Gutleber (rickg@his.com)'
 
-currentDir = ""
+currentDir = ''
 currentDirCount = 0
 currentFileCount = 0
 
@@ -106,8 +107,8 @@ stopEvent = threading.Event( )
 argumentPrefixLinux = '-'
 argumentPrefixWindows = '/'
 
-prefixListLinux = '-'
-prefixListWindows = '/-'
+prefixListLinux = argumentPrefixLinux
+prefixListWindows = argumentPrefixLinux + argumentPrefixWindows
 
 outputAccessed = 0
 outputCreated = 1
@@ -251,11 +252,12 @@ revision history:
            since it doesn't need to be erased
     3.9.3: stdout is redirected when it's being piped, so that change didn't
            work so well
-    3.9.4: I stopped using reprlib correctly... probably a long time ago.
+    3.9.4: I had stopped using reprlib correctly... probably a long time ago.
+    3.9.5: Minor bug fix with attributeFlags
 
     Known bugs:
         - As of 3.9.2, stdout from an executed command (/c) doesn't show up
-        - As of 3.9.2 /es doesn't do the same thing as /e /s
+        - As of 3.9.2, /es doesn't do the same thing as /e /s
         - The original intent was to never have output wrap (according to /Ll
           or the default of 80), but this never took into account extra
           columns being output.
@@ -299,7 +301,7 @@ def outputTotalStats( size = 0, lines = 0, separator = False ):
 #//
 #//******************************************************************************
 
-def outputDirTotalStats( absoluteFileName, fileSize, lineCount ):
+def outputDirTotalStats( absoluteFileName, fileSize, lineCount, attributeFlags ):
     for outputType in outputOrder:
         if outputType == outputAccessed:
             out_date = datetime.fromtimestamp( round( os.stat( absoluteFileName ).st_atime, 0 ) )
@@ -349,7 +351,7 @@ def outputDirTotalStats( absoluteFileName, fileSize, lineCount ):
 #//  !r - relative filespec
 #//  !t - time of day (24-hour - HHMM) when app was started
 #//  !x - filename extension
-#//  !| - '|'
+#//  !| - '|', pipe character
 #//
 #//******************************************************************************
 
@@ -729,7 +731,7 @@ def main( ):
                         print( blankLine, end='\r', file=sys.stderr )
                         statusLineDirty = False
 
-                    outputDirTotalStats( absoluteFileName, fileSize, lineCount )
+                    outputDirTotalStats( absoluteFileName, fileSize, lineCount, attributeFlags )
 
                     if outputRelativePath:
                         print( fileNameRepr.repr( relativeFileName ).replace( '\\\\', '\\' )[ 1 : -1 ] )
