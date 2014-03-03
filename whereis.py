@@ -25,7 +25,7 @@ import win32file
 #//**********************************************************************
 
 PROGRAM_NAME = "whereis"
-VERSION = "3.8.7"
+VERSION = "3.8.8"
 COPYRIGHT_MESSAGE = "copyright (c) 2013 (1997), Rick Gutleber (rickg@his.com)"
 
 currentDir = ""
@@ -176,6 +176,8 @@ revision history:
     3.8.5: blankLine wasn't updated if /Ll was set
     3.8.6: directory depth wasn't always calculated correctly, causing /n1 to fail
     3.8.7: added TO_DEV_NULL
+    3.8.8: now handles a permission exception when trying to get the filesize and
+           just pretends the filesize is 0
 
     Known bugs:
         - The status line is occasionally not erased when the search is complete.
@@ -476,7 +478,11 @@ def main( ):
             absoluteFileName = os.path.join( currentAbsoluteDir, fileName )
             relativeFileName = os.path.join( currentRelativeDir, fileName )
 
-            fileSize = os.stat( absoluteFileName ).st_size
+            try:
+                fileSize = os.stat( absoluteFileName ).st_size
+            except PermissionError:
+                fileSize = 0
+
             dirTotal = dirTotal + fileSize
             fileCount += 1
 
