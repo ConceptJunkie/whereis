@@ -18,24 +18,33 @@ import win32con
 import win32file
 
 
-#//**********************************************************************
+#//******************************************************************************
 #//
 #//  globals/constants
 #//
-#//**********************************************************************
+#//******************************************************************************
 
 PROGRAM_NAME = "whereis"
-VERSION = "3.8.8"
+VERSION = "3.8.9"
 COPYRIGHT_MESSAGE = "copyright (c) 2013 (1997), Rick Gutleber (rickg@his.com)"
 
 currentDir = ""
 currentDirCount = 0
 currentFileCount = 0
 
-defaultLineLength = 80
 defaultFileCountLength = 9
 defaultLineCountLength = 9
-defaultFileSizeLength = 14
+defaultFileSizeLength = 16
+defaultLineLength = 80
+
+fileCountLength = 0
+fileSizeLength = 0
+lineCountLength = 0
+lineLength = 0
+
+fileCountFormat = ''
+lineCountFormat = ''
+fileSizeFormat = ''
 
 dateLength = 19
 attributesLength = 7
@@ -64,12 +73,14 @@ ERR_DEV_NULL = ' 2> NUL'
 
 TO_DEV_NULL = STD_DEV_NULL + ERR_DEV_NULL
 
+outputOrder = list( )
 
-#//**********************************************************************
+
+#//******************************************************************************
 #//
 #//  printRevisionHistory
 #//
-#//**********************************************************************
+#//******************************************************************************
 
 def printRevisionHistory( ):
     print( 'Python Version: ' + platform.python_version( ) )
@@ -167,21 +178,58 @@ revision history:
            os.system( ), not sure which one is better
     3.8.0: added /a
     3.8.1: changed exit( ) to return because TCC uses shebang and calling
-           exit( ) also causes TCC to exit, therefore python files can
-           be run directly from the TCC command-line without needing a
-           batch file or alias
+           exit( ) also causes TCC to exit, also python files can be run
+           directly from the TCC command-line without needing a batch file
+           or alias
     3.8.2: small changes to status line, fixed /r
     3.8.3: fixed use of undefined variable
     3.8.4: changed back to os.system( ) because subprocess doesn't work
     3.8.5: blankLine wasn't updated if /Ll was set
-    3.8.6: directory depth wasn't always calculated correctly, causing /n1 to fail
+    3.8.6: directory depth wasn't always calculated correctly, causing /n1 to
+           fail
     3.8.7: added TO_DEV_NULL
-    3.8.8: now handles a permission exception when trying to get the filesize and
-           just pretends the filesize is 0
+    3.8.8: now handles a permission exception when trying to get the filesize
+           and just pretends the filesize is 0
+    3.8.9: Increased default file length of 16... 100s of GB.  It happens
+           frequently enough when summing directory sizes.
 
     Known bugs:
         - The status line is occasionally not erased when the search is complete.
 ''' )
+
+
+#//**********************************************************************
+#//
+#//  updateStatus
+#//
+#//  Sometimes whereis can be slow so we update the current directory
+#//  count to stderr every 0.5 seconds.
+#//
+#//**********************************************************************
+
+def outputTotalStats( size = 0, lines = 0, separator = False ):
+    global fileSizeLength
+    global lineCountLength
+
+    for outputType in outputOrder:
+        if outputType == outputAccessed:
+            print( ' ' * dateLength, end = ' ' )
+        elif outputType == outputCreated:
+            print( ' ' * dateLength, end = ' ' )
+        elif outputType == outputModified:
+            print( ' ' * dateLength, end = ' ' )
+        elif outputType == outputSize:
+            if separator:
+                print( ( '-' * fileSizeLength ), end=' ' )
+            else:
+                print( format( size, fileSizeFormat ), end=' ' )
+        elif outputType == outputLineCount:
+            if separator:
+                print( ( '-' * lineCountLength ), end=' ' )
+            else:
+                print( format( lines, lineCountFormat ), end=' ' )
+        elif outputType == outputAttributes:
+            print( ' ' * attributesLength, end = ' ' )
 
 
 #//**********************************************************************
@@ -208,11 +256,11 @@ def statusProcess( ):
         stopEvent.wait( 0.5 )
 
 
-#//**********************************************************************
+#//******************************************************************************
 #//
 #//  main
 #//
-#//**********************************************************************
+#//******************************************************************************
 
 #  !! - single exclamation point
 #  !f - fully qualified filespec
@@ -241,6 +289,15 @@ def main( ):
     global currentFileCount
     global blankLine
     global lineLength
+
+    global fileCountLength
+    global fileSizeLength
+    global lineCountLength
+    global lineLength
+
+    global fileCountFormat
+    global lineCountFormat
+    global fileSizeFormat
 
     blankLine = ' ' * ( defaultLineLength - 1 )
 
@@ -283,7 +340,6 @@ def main( ):
     # let's do a little preprocessing of the argument list because argparse is missing a few pieces of functionality
     # the original whereis provided
     new_argv = list( )
-    outputOrder = list( )
 
     # grab the fileSpec and SourceDir and stick everything else in the list for argparse
     prog = ''
@@ -494,6 +550,7 @@ def main( ):
 
                 base, extension = os.path.splitext( fileName )
                 extension = extension.strip( )  # unix puts in a newline supposedly
+
                 translatedCommand = translatedCommand.replace( '!!', '!' )
                 translatedCommand = translatedCommand.replace( '!q', '"' )
                 translatedCommand = translatedCommand.replace( '!i', '<' )
@@ -529,7 +586,7 @@ def main( ):
             if countLines:
                 lineCount = 0
 
-                for line in codecs.open( absoluteFileName, 'rU', 'ascii', 'replace'  ):
+                for line in codecs.open( absoluteFileName, 'rU', 'ascii', 'replace' ):
                     lineCount += 1
 
                 lineTotal = lineTotal + lineCount
@@ -586,19 +643,7 @@ def main( ):
             with outputLock:
                 print( blankLine, end='\r', file=sys.stderr )
 
-                for outputType in outputOrder:
-                    if outputType == outputAccessed:
-                        print( ' ' * dateLength, end = ' ' )
-                    elif outputType == outputCreated:
-                        print( ' ' * dateLength, end = ' ' )
-                    elif outputType == outputModified:
-                        print( ' ' * dateLength, end = ' ' )
-                    elif outputType == outputSize:
-                        print( format( dirTotal, fileSizeFormat ), end=' ' )
-                    elif outputType == outputLineCount:
-                         print( format( lineTotal, lineCountFormat ), end=' ' )
-                    elif outputType == outputAttributes:
-                        print( ' ' * attributesLength, end = ' ' )
+                outputTotalStats( dirTotal, lineTotal )
 
                 print( currentDir )
 
@@ -614,35 +659,11 @@ def main( ):
         with outputLock:
             print( blankLine, end='\r' )
 
-            for outputType in outputOrder:
-                if outputType == outputAccessed:
-                    print( ' ' * dateLength, end = ' ' )
-                elif outputType == outputCreated:
-                    print( ' ' * dateLength, end = ' ' )
-                elif outputType == outputModified:
-                    print( ' ' * dateLength, end = ' ' )
-                elif outputType == outputSize:
-                    print( ( '-' * fileSizeLength ), end=' ' )
-                elif outputType == outputLineCount:
-                    print( ( '-' * lineCountLength ), end=' ' )
-                elif outputType == outputAttributes:
-                    print( ' ' * attributesLength, end = ' ' )
+            outputTotalStats( separator = True )
 
             print( '-' * fileCountLength )
 
-            for outputType in outputOrder:
-                if outputType == outputAccessed:
-                    print( ' ' * dateLength, end = ' ' )
-                elif outputType == outputCreated:
-                    print( ' ' * dateLength, end = ' ' )
-                elif outputType == outputModified:
-                    print( ' ' * dateLength, end = ' ' )
-                elif outputType == outputSize:
-                    print( format( grandDirTotal, fileSizeFormat ), end=' ' )
-                elif outputType == outputLineCount:
-                    print( format( grandLineTotal, lineCountFormat ), end=' ' )
-                elif outputType == outputAttributes:
-                    print( ' ' * attributesLength, end = ' ' )
+            outputTotalStats( grandDirTotal, grandLineTotal )
 
             if outputDirTotalsOnly:
                 print( format( currentDirCount, fileCountFormat ) )
@@ -650,11 +671,11 @@ def main( ):
                 print( format( fileCount, fileCountFormat ) )
 
 
-#//**********************************************************************
+#//******************************************************************************
 #//
 #//  __main__
 #//
-#//**********************************************************************
+#//******************************************************************************
 
 if __name__ == '__main__':
     global blankLine
