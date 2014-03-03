@@ -7,11 +7,23 @@ import fnmatch
 import locale
 import os
 from os.path import join, getsize
+import platform
 import reprlib                      # prevents barfing on weird characters in filenames
+import subprocess
 import sys
 import threading
 import time
 import re
+
+noBlessings = False
+
+#try:
+#import colorama
+#import blessings
+#except:
+#    noBlessings = True
+
+#print( "********** " + str( noBlessings ) )
 
 
 #//**********************************************************************
@@ -60,6 +72,10 @@ outputLineCount = 4
 #//**********************************************************************
 
 def printRevisionHistory( ):
+    print( 'Python Version: ' + platform.python_version( ) )
+    print( 'Python Compiler: ' + platform.python_compiler( ) )
+    print( 'Python Built: ' + platform.python_build( )[ 1 ] )
+    print( )
     print( '''
 revision history:
     1.3.0: added command (/c)
@@ -122,31 +138,38 @@ revision history:
             problem with GTime that caused /f not to work right
     1.12.0: added /v (version check)... renamed old /v to /@ (verbose)
     1.12.1: brought up to date with latest RickLib (1.4.0 dev)
-    2.0.0 : completely rewrote RDirIterator and changed it to RDirEnumerator
-            and RFileEnumerator, whereis no longer leaks massive memory during
-            large jobs, plus the code is simpler
-    2.0.1 : allows for multiple /b arguments, updated to RickLib 1.5.0
-    2.0.2 : no longer uses iostream.h
-    2.0.2.1 : default format width changed from 13 to 14... it was time...
-    2.0.3 : built with RickLib 1.6.1
-    2.1.0 : added support for UNC names ("\\\\machine\\share\\dir\\", etc)
-    2.1.1 : added depth limiter command (added a numerical arg to /n)
-    2.1.2 : added /N rename special command
-    3.0.0 : port to python, only some features have been ported so far,
-            but about 90% of what I actually use
-    3.0.1 : bugfixes for directory totalling and explicitly replacing '*.*'
-            with '*' since they mean the same thing in Windows
-    3.1.0 : added -c and -b back (-c supports !!, !f, !q, !r )
-    3.2.0 : added -1 back
-    3.3.0 : added !d, !D, !t, !T, !b, !c, !x, !p, !P, !/, !n, and !0 
-    3.4.0 : changed -l to -L, added -l
-    3.5.0 : changed -L to -Ll, added -Lf, -Ln, -Lz, plus lots of bug fixing, 
-            better exception handling
-    3.5.1 : fixed output (made sure all status stuff goes to stderr)
-    3.5.2 : bug fixes for directory size output
-    3.5.3 : bug fixes for directory size output and totalling
-    3.6.0 : '/' as argument prefix for Windows, '-' for Linux, improved arg 
-            parsing, output order based on arg order, added /n
+    2.0.0: completely rewrote RDirIterator and changed it to RDirEnumerator
+           and RFileEnumerator, whereis no longer leaks massive memory during
+           large jobs, plus the code is simpler
+    2.0.1: allows for multiple /b arguments, updated to RickLib 1.5.0
+    2.0.2: no longer uses iostream.h
+    2.0.2.1: default format width changed from 13 to 14... it was time...
+    2.0.3: built with RickLib 1.6.1
+    2.1.0: added support for UNC names ("\\\\machine\\share\\dir\\", etc)
+    2.1.1: added depth limiter command (added a numerical arg to /n)
+    2.1.2: added /N rename special command
+    3.0.0: port to python, only some features have been ported so far,
+           but about 90% of what I actually use
+    3.0.1: bugfixes for directory totalling and explicitly replacing '*.*'
+           with '*' since they mean the same thing in Windows
+    3.1.0: added -c and -b back (-c supports !!, !f, !q, !r )
+    3.2.0: added -1 back
+    3.3.0: added !d, !D, !t, !T, !b, !c, !x, !p, !P, !/, !n, and !0 
+    3.4.0: changed -l to -L, added -l
+    3.5.0: changed -L to -Ll, added -Lf, -Ln, -Lz, plus lots of bug fixing, 
+           better exception handling
+    3.5.1: fixed output (made sure all status stuff goes to stderr)
+    3.5.2: bug fixes for directory size output
+    3.5.3: bug fixes for directory size output and totalling
+    3.6.0: '/' as argument prefix for Windows, '-' for Linux, improved arg 
+           parsing, output order based on arg order, added /n
+    3.6.1: added /u, switched back to subprocess.call( ) from os.system( ), not
+           sure which one is better
+
+    Known bugs: 
+        - The status line is occasionally not erased when the search is complete
+        - /r does not work unless the search directory is '.', trailing directory
+          separators (or lack thereof) might be part of the issue
 ''' )
 
 
@@ -235,6 +258,7 @@ def main( ):
 #    parser.add_argument( argumentPrefix + 'R', '--rename', choices='dmnsu' )
     parser.add_argument( argumentPrefix + 's', '--output_file_size', action='store_true' )
     parser.add_argument( argumentPrefix + 't', '--output_totals', action='store_true' )
+    parser.add_argument( argumentPrefix + 'u', '--hide_command_output', action='store_true' )
     parser.add_argument( argumentPrefix + 'v', '--version', action='version', version='%(prog)s ' + VERSION )
     parser.add_argument( argumentPrefix + 'vv', '--version_history', action='store_true' )
     parser.add_argument( argumentPrefix + 'x', '--exclude_filespec', action='append', nargs="+" )
@@ -305,6 +329,7 @@ def main( ):
         printRevisionHistory( )
         exit( )
 
+    # let's handle all the flags and values parsed off the command-line
     if args.include_filespec == None:
         includeFileSpecs = list( )
     else:
@@ -331,6 +356,7 @@ def main( ):
     executeCommand = args.execute_command
     backupLocation = args.backup
     findOne = args.find_one
+    hideCommandOutput = args.hide_command_output
 
     printCommandOnly = args.print_command_only
 
@@ -348,11 +374,8 @@ def main( ):
     fileNameRepr = reprlib.Repr( )
     fileNameRepr = lineLength - 1    # sets max string length of repr
 
-    #print( "sourceDir: " + sourceDir )
-    #print( "fileSpec: " + fileSpec )
-    #print( )
-
     # try to identify source dir and filespec intelligently...
+
     # I don't want order to matter if it's obvious what the user meant
     if all( ( c in './\\' ) for c in fileSpec ) or any( ( c in '*?' ) for c in sourceDir ) or \
        any( ( c in '/\\' ) for c in fileSpec ) or ( os.path.isdir( fileSpec ) ):
@@ -363,6 +386,7 @@ def main( ):
 
     fileSpec = fileSpec.replace( '*.*', '*' )    # *.* and * mean the same thing on Windows
 
+    # a little validation before we start
     if not os.path.isdir( sourceDir ):
         print( "whereis: source directory '" + sourceDir + "' does not exist or cannot be accessed", file=sys.stderr )
         exit( )
@@ -375,19 +399,16 @@ def main( ):
     blankLine = ' ' * ( lineLength - 1 ) 
     threading.Thread( target = statusProcess ).start( )
 
-    #print( "sourceDir: " + sourceDir )
-    #print( "fileSpec: " + fileSpec )
-
     fileCount = 0
     lineTotal = 0
     grandDirTotal = 0
     grandLineTotal = 0
+
+    # initialize currentDir because the status thread might need it before we set it below
     currentDir = os.path.abspath( sourceDir )
 
     foundOne = False
     printDate = False
-
-    # see http://stackoverflow.com/questions/5141437/filtering-os-walk-dirs-and-files to fix this
 
     # walk the tree
     for top, dirs, files in os.walk( sourceDir ):
@@ -395,6 +416,7 @@ def main( ):
 
         relativePath = top[ len( sourceDir ) : ]
 
+        # minor performance note:  we're still going to walk all the directories even if we are ignoring them
         if maxDepth > 0:
             depth = relativePath.count( os.sep ) + 1
 
@@ -414,6 +436,7 @@ def main( ):
         dirTotal = 0
         lineTotal = 0
 
+        # build the set of files that match our criteria
         fileSet = set( fnmatch.filter( files, fileSpec ) )
 
         for includeFileSpec in includeFileSpecs:
@@ -424,6 +447,7 @@ def main( ):
 
         createdBackupDir = ( top == '.' )
 
+        # now we have the list of files, so let's sort them and handle them
         for fileName in sorted( fileSet, key=str.lower ):
             absoluteFileName = os.path.join( os.path.abspath( top ), fileName )
             relativeFileName = os.path.join( top, fileName )
@@ -464,10 +488,13 @@ def main( ):
                 translatedCommand = translatedCommand.replace( '!p', '"' + relativePathName + '"' )
                 translatedCommand = translatedCommand.replace( '!P', '"' + absolutePathName + '"' )
 
+                if not hideCommandOutput:
+                    translatedCommand += ' > ' + os.devnull
+
                 if printCommandOnly:
                     print( ' ' * ( lineLength - 1 ) + '\r' + translatedCommand )
                 else:
-                    os.system( translatedCommand + ' > ' + os.devnull )
+                    subprocess.call( translatedCommand )
 
             if countLines:
                 lineCount = 0
