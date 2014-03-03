@@ -14,8 +14,6 @@ import sys
 import threading
 import time
 import re
-import win32con
-import win32file
 
 noBlessings = False
 
@@ -35,7 +33,7 @@ noBlessings = False
 #//**********************************************************************
 
 PROGRAM_NAME = "whereis"
-VERSION = "3.6.2"
+VERSION = "3.7.0"
 COPYRIGHT_MESSAGE = "copyright (c) 2012 (1997), Rick Gutleber (rickg@his.com)"
 
 currentDir = ""
@@ -47,7 +45,6 @@ defaultLineCountLength = 9
 defaultFileSizeLength = 14 
 
 dateLength = 19
-attributesLength = 7
 
 lineLength = 0
 
@@ -66,7 +63,6 @@ outputCreated = 1
 outputModified = 2
 outputSize = 3
 outputLineCount = 4
-outputAttributes = 5
 
 
 #//**********************************************************************
@@ -167,7 +163,7 @@ revision history:
     3.5.3: bug fixes for directory size output and totalling
     3.6.0: '/' as argument prefix for Windows, '-' for Linux, improved arg 
            parsing, output order based on arg order, added /n
-    3.6.1: added /u, switched back to subprocess.call( ) from os.system( ), not
+    3.7.0: added /u, switched back to subprocess.call( ) from os.system( ), not
            sure which one is better
 
     Known bugs: 
@@ -243,7 +239,6 @@ def main( ):
 
     parser = argparse.ArgumentParser( prog=PROGRAM_NAME, description=PROGRAM_NAME + ' - ' + VERSION + ' - ' + COPYRIGHT_MESSAGE, prefix_chars=prefixList )
 
-    parser.add_argument( argumentPrefix + 'a', '--file_attributes', action='store_true' )
     parser.add_argument( argumentPrefix + '1', '--find_one', action='store_true' )
     parser.add_argument( argumentPrefix + 'b', '--backup', action='store', default='' )
     parser.add_argument( argumentPrefix + 'c', '--execute_command', action='store', default='' )
@@ -258,7 +253,7 @@ def main( ):
     parser.add_argument( argumentPrefix + 'Ln', '--line_count_length', type=int, default=defaultLineCountLength )
     parser.add_argument( argumentPrefix + 'Lz', '--file_size_length', type=int, default=defaultFileSizeLength )
     parser.add_argument( argumentPrefix + 'm', '--no_commas', action='store_true' )
-    parser.add_argument( argumentPrefix + 'n', '--max_depth', type=int, const=1, default=0, nargs='?' )
+    parser.add_argument( argumentPrefix + 'n', '--max_depth', type=int, const=0, default=0, nargs='?' )
     parser.add_argument( argumentPrefix + 'r', '--output_relative_path', action='store_true' )
 #    parser.add_argument( argumentPrefix + 'R', '--rename', choices='dmnsu' )
     parser.add_argument( argumentPrefix + 's', '--output_file_size', action='store_true' )
@@ -302,9 +297,7 @@ def main( ):
             copyNextOne = arg[ 1 ] in 'bciLx'   # these are args that can have parameters
 
             # build the output order list
-            if arg[ 1 ] == 'a':
-                outputOrder.append( outputAttributes )
-            elif arg[ 1 ] == 'l':
+            if arg[ 1 ] == 'l':
                 outputOrder.append( outputLineCount )
             elif arg[ 1 ] == 'd':
                 outputOrder.append( outputModified )
@@ -364,7 +357,6 @@ def main( ):
     backupLocation = args.backup
     findOne = args.find_one
     hideCommandOutput = args.hide_command_output
-    fileAttributes = args.file_attributes
 
     printCommandOnly = args.print_command_only
 
@@ -418,8 +410,6 @@ def main( ):
     foundOne = False
     printDate = False
 
-    attributeFlags = 0
-
     # walk the tree
     for top, dirs, files in os.walk( sourceDir ):
         top = os.path.normpath( top )
@@ -466,9 +456,6 @@ def main( ):
             dirTotal = dirTotal + fileSize
             fileCount += 1
 
-            if fileAttributes:
-                attributeFlags = win32file.GetFileAttributes( absoluteFileName )
-                                           
             if executeCommand != '':
                 translatedCommand = executeCommand
 
@@ -545,14 +532,6 @@ def main( ):
                             print( format( fileSize, fileSizeFormat ), end=' ' )
                         elif outputType == outputLineCount:
                              print( format( lineCount, lineCountFormat ), end=' ' )
-                        elif outputType == outputAttributes:
-                            print( ( 'a' if attributeFlags & win32con.FILE_ATTRIBUTE_ARCHIVE else '-' ) +
-                                   ( 'c' if attributeFlags & win32con.FILE_ATTRIBUTE_COMPRESSED else '-' ) +
-                                   ( 'h' if attributeFlags & win32con.FILE_ATTRIBUTE_HIDDEN else '-' ) +
-                                   ( 'n' if attributeFlags & win32con.FILE_ATTRIBUTE_NORMAL else '-' ) +
-                                   ( 'r' if attributeFlags & win32con.FILE_ATTRIBUTE_READONLY else '-' ) +
-                                   ( 's' if attributeFlags & win32con.FILE_ATTRIBUTE_SYSTEM else '-' ) +
-                                   ( 't' if attributeFlags & win32con.FILE_ATTRIBUTE_TEMPORARY else '-' ), end=' ' )
 
                     #print( os.path.join( currentDir, repr( fileName )[ 1 : -1 ] ) )
                     if outputRelativePath:
@@ -580,8 +559,6 @@ def main( ):
                         print( format( dirTotal, fileSizeFormat ), end=' ' )
                     elif outputType == outputLineCount:
                          print( format( lineTotal, lineCountFormat ), end=' ' )
-                    elif outputType == outputAttributes:
-                        print( ' ' * attributesLength, end = ' ' )
 
                 print( currentDir )
 
@@ -608,8 +585,6 @@ def main( ):
                     print( ( '-' * fileSizeLength ), end=' ' )
                 elif outputType == outputLineCount:
                     print( ( '-' * lineCountLength ), end=' ' )
-                elif outputType == outputAttributes:
-                    print( ' ' * attributesLength, end = ' ' )
 
             print( '-' * fileCountLength )
 
@@ -624,8 +599,6 @@ def main( ):
                     print( format( grandDirTotal, fileSizeFormat ), end=' ' )
                 elif outputType == outputLineCount:
                     print( format( grandLineTotal, lineCountFormat ), end=' ' )
-                elif outputType == outputAttributes:
-                    print( ' ' * attributesLength, end = ' ' )
 
             if outputDirTotalsOnly:
                 print( format( currentDirCount, fileCountFormat ) )
