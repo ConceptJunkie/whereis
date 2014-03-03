@@ -25,6 +25,7 @@ COPYRIGHT_MESSAGE = "copyright (c) 2012 (1997), Rick Gutleber (rickg@his.com)"
 
 currentDir = ""
 currentDirCount = 1
+blankLine = ""
 
 lineLength = 80
 
@@ -119,6 +120,7 @@ revision history:
     3.1.0 : added -c and -b back (-c supports !!, !f, !q, !r )
     3.2.0 : added -1 back
     3.3.0 : added !d, !D, !t, !T, !b, !c, !x, !p, !P, !/, !n, and !0 
+    3.4.0 : changed -l to -L, added -l
 ''' )
 
 
@@ -132,15 +134,18 @@ revision history:
 #//**********************************************************************
 
 def statusProcess( ):
+    global blankLine
+        
     while not stopEvent.isSet( ):
-        if not stopEvent.wait( 0.5 ):
-            with outputLock:
-                output = format( currentDirCount ) + " - " + currentDir
+        with outputLock:
+            output = format( currentDirCount ) + " - " + currentDir
 
-                if len( output ) > lineLength - 3:
-                    output = output[ 0 : lineLength - 4 ] + '...'
+            if len( output ) > lineLength - 3:
+                output = output[ 0 : lineLength - 4 ] + '...'
 
-                print( ' ' * ( lineLength - 1 ) + '\r' + output, end='\r', file=sys.stderr )
+            print( blankLine + output, end='\r', file=sys.stderr )
+
+        stopEvent.wait( 0.5 )
 
 
 #//**********************************************************************
@@ -176,6 +181,7 @@ def main( ):
     global currentDir
     global currentDirCount
     global lineLength
+    global blankLine
 
     parser = argparse.ArgumentParser( prog=PROGRAM_NAME, description=PROGRAM_NAME + ' - ' + VERSION + ' - ' + COPYRIGHT_MESSAGE )
 
@@ -187,7 +193,8 @@ def main( ):
     parser.add_argument( '-e', '--output_dir_totals', action='store_true' )
     parser.add_argument( '-E', '--output_dir_totals_only', action='store_true' )
     parser.add_argument( '-i', '--include_filespec', action='append', nargs='*', default='' )
-    parser.add_argument( '-l', '--line_length', type=int, default=80 )
+    parser.add_argument( '-L', '--line_length', type=int, default=80 )
+    parser.add_argument( '-l', '--count_lines', action='store_true' )
 #    parser.add_argument( '-n', '--recurse_levels', type=int, default=0 )
     parser.add_argument( '-r', '--output_relative_path', action='store_true' )
 #    parser.add_argument( '-R', '--rename', choices='dmnsu' )
@@ -215,6 +222,7 @@ def main( ):
     sourceDir = args.sourceDir
     includeFileSpecs = args.include_filespec
     lineLength = args.line_length
+    countLines = args.count_lines
 
     if args.exclude_filespec == None:
         excludeFileSpecs = list( )
@@ -260,13 +268,16 @@ def main( ):
         exit( )
 
     # start status thread
+    blankLine = ' ' * ( lineLength - 1 ) + '\r'
     threading.Thread( target = statusProcess ).start( )
 
     #print( "sourceDir: " + sourceDir )
     #print( "fileSpec: " + fileSpec )
 
     fileCount = 0
-    grandTotal = 0
+    lineTotal = 0
+    grandDirTotal = 0
+    grandLineTotal = 0
     currentDir = os.path.abspath( sourceDir )
 
     foundOne = False
@@ -283,6 +294,7 @@ def main( ):
         currentDirCount += 1
 
         dirTotal = 0
+        lineTotal = 0
 
         fileSet = set( fnmatch.filter( files, fileSpec ) )
 
@@ -327,19 +339,24 @@ def main( ):
                 translatedCommand = translatedCommand.replace( '!t', datetime.now( ).strftime( "%H%M" ) )
                 translatedCommand = translatedCommand.replace( '!T', datetime.now( ).strftime( "%H%M%S" ) )
 
-                translatedCommand = translatedCommand.replace( '!c', os.getcwd( ) )
-                translatedCommand = translatedCommand.replace( '!r', relativeFileName )
-                translatedCommand = translatedCommand.replace( '!f', absoluteFileName )
-                translatedCommand = translatedCommand.replace( '!b', base )              
-                translatedCommand = translatedCommand.replace( '!x', extension )
-                translatedCommand = translatedCommand.replace( '!p', relativePathName )
-                translatedCommand = translatedCommand.replace( '!P', absolutePathName )
+                translatedCommand = translatedCommand.replace( '!c', '"' + os.getcwd( ) + '"' )
+                translatedCommand = translatedCommand.replace( '!r', '"' + relativeFileName + '"' )
+                translatedCommand = translatedCommand.replace( '!f', '"' + absoluteFileName + '"' )
+                translatedCommand = translatedCommand.replace( '!b', '"' + base + '"' )              
+                translatedCommand = translatedCommand.replace( '!x', '"' + extension + '"' )
+                translatedCommand = translatedCommand.replace( '!p', '"' + relativePathName + '"' )
+                translatedCommand = translatedCommand.replace( '!P', '"' + absolutePathName + '"' )
 
                 if printCommandOnly:
                     print( ' ' * ( lineLength - 1 ) + '\r' + translatedCommand )
                 else:
                     #os.system( translatedCommand + ' > ' + os.devnull )
                     os.system( translatedCommand + ' > ' + os.devnull )
+
+            if countLines:
+                lineCount = 0
+                for line in open( fileName ).xreadlines(  ): lineCount += 1
+                lineTotal = lineTotal + lineCount
 
             if backupLocation != '':
                 if not createdBackupDir:
@@ -351,7 +368,7 @@ def main( ):
                 print( 'copy "' + fileName + '" "' + backupTargetFile + '" > NUL ' )
 
             if not outputDirTotalsOnly:
-                print( ' ' * ( lineLength - 1 ), end='\r' )
+                print( blankLine, end='' )
 
                 printDate = False
 
@@ -372,6 +389,9 @@ def main( ):
                     if outputFileSize:
                         print( format( fileSize, '14,d' ), end=' ' )
 
+                    if countLines: 
+                        print( format( lineCount, '6,d' ), end=' ' )
+
                     print( os.path.join( currentDir, repr( fileName )[ 1 : -1 ] ) )
 
             foundOne = True
@@ -381,12 +401,17 @@ def main( ):
 
         if outputDirTotals or outputDirTotalsOnly:
             with outputLock:
-                print( ' ' * ( lineLength - 1 ), end='\r' )
+                print( blankLine, end='' )
                 print( format( dirTotal, '14,d' ), end=' ' )
+
+                if countLines: 
+                    print( format( dirLineTotal, '6,d' ), end=' ' )
+
                 print( currentDir )
 
         if outputTotals:
-            grandTotal = grandTotal + dirTotal
+            grandDirTotal += dirTotal
+            grandLineTotal += lineTotal
             currentDirCount += 1
 
         if foundOne and findOne:
@@ -394,20 +419,23 @@ def main( ):
 
     if outputTotals:
         with outputLock:
+            print( blankLine, end='' )
+            print( '--------------', end=' ' )
+
+            if countLines:
+                print( '------', end=' ' )
+
+            print( '-----', end=' ' )
+
+            print( '-------------- -----' )
+            print( format( grandDirTotal, '14,d' ), end=' ' )
+
+            if countLines:
+                print( format( grandLineTotal, '6,d' ), end=' ' )
+
             if outputDirTotalsOnly:
-                print( ' ' * ( lineLength - 1 ), end='\r' )
-                print( '-------------- -----' )
-                print( format( grandTotal, '14,d' ), end=' ' )
                 print( format( currentDirCount, ',d' ) )
             else:
-                print( ' ' * ( lineLength - 1 ), end='\r' )
-
-                if outputFileSize:
-                    print( '-------------- -----' )
-                    print( format( grandTotal, '14,d' ), end=' ' )
-                else:
-                    print( '-----' )
-
                 print( format( fileCount, ',d' ) )
 
 
