@@ -21,7 +21,7 @@ import re
 #//**********************************************************************
 
 PROGRAM_NAME = "whereis"
-VERSION = "3.5.1"
+VERSION = "3.6.0"
 COPYRIGHT_MESSAGE = "copyright (c) 2012 (1997), Rick Gutleber (rickg@his.com)"
 
 currentDir = ""
@@ -32,11 +32,25 @@ defaultFileCountLength = 9
 defaultLineCountLength = 9
 defaultFileSizeLength = 14 
 
+dateLength = 19
+
 lineLength = 0
 
 outputLock = threading.Lock( )
 
 stopEvent = threading.Event( )
+
+argumentPrefixLinux = '-'
+argumentPrefixWindows = '/'
+
+prefixListLinux = '-'
+prefixListWindows = '/-'
+
+outputAccessed = 0
+outputCreated = 1
+outputModified = 2
+outputSize = 3
+outputLineCount = 4
 
 
 #//**********************************************************************
@@ -129,6 +143,10 @@ revision history:
     3.5.0 : changed -L to -Ll, added -Lf, -Ln, -Lz, plus lots of bug fixing, 
             better exception handling
     3.5.1 : fixed output (made sure all status stuff goes to stderr)
+    3.5.2 : bug fixes for directory size output
+    3.5.3 : bug fixes for directory size output and totalling
+    3.6.0 : '/' as argument prefix for Windows, '-' for Linux, improved arg 
+            parsing, output order based on arg order, added /n
 ''' )
 
 
@@ -183,44 +201,101 @@ def statusProcess( ):
 #  !O - '>>'
 #  !| - '|'
 
-
-
 def main( ):
     global currentDir
     global currentDirCount
     global blankLine
     global lineLength
 
-    parser = argparse.ArgumentParser( prog=PROGRAM_NAME, description=PROGRAM_NAME + ' - ' + VERSION + ' - ' + COPYRIGHT_MESSAGE )
+    if os.name == 'nt':
+        argumentPrefix = argumentPrefixWindows
+        prefixList = prefixListWindows
+    else:
+        argumentPrefix = argumentPrefixLinux
+        prefixList = prefixListLinux
 
-    parser.add_argument( '-1', '--find_one', action='store_true' )
-    parser.add_argument( '-b', '--backup', action='store', default='' )
-    parser.add_argument( '-c', '--execute_command', action='store', default='' )
-    parser.add_argument( '-d', '--output_timestamp', action='store_const', const='m' )
-    parser.add_argument( '-D', choices='acm', default='m', help='output timestamp, a = last accessed, c = created, m = last modified' )
-    parser.add_argument( '-e', '--output_dir_totals', action='store_true' )
-    parser.add_argument( '-E', '--output_dir_totals_only', action='store_true' )
-    parser.add_argument( '-i', '--include_filespec', action='append', nargs="+" )
-    parser.add_argument( '-l', '--count_lines', action='store_true' )
-    parser.add_argument( '-Lf', '--file_count_length', type=int, default=defaultFileCountLength )
-    parser.add_argument( '-Ll', '--line_length', type=int, default=defaultLineLength )
-    parser.add_argument( '-Ln', '--line_count_length', type=int, default=defaultLineCountLength )
-    parser.add_argument( '-Lz', '--file_size_length', type=int, default=defaultFileSizeLength )
-    parser.add_argument( '-m', '--no_commas', action='store_true' )
-#    parser.add_argument( '-n', '--recurse_levels', type=int, default=0 )
-    parser.add_argument( '-r', '--output_relative_path', action='store_true' )
-#    parser.add_argument( '-R', '--rename', choices='dmnsu' )
-    parser.add_argument( '-s', '--output_file_size', action='store_true' )
-    parser.add_argument( '-t', '--output_totals', action='store_true' )
-    parser.add_argument( '-v', '--version', action='version', version='%(prog)s ' + VERSION )
-    parser.add_argument( '-vv', '--version_history', action='store_true' )
-    parser.add_argument( '-x', '--exclude_filespec', action='append', nargs="+" )
-    parser.add_argument( '-z', '--print_command_only', action='store_true' )
-    parser.add_argument( '-?', '--print_help', action='store_true' )
-    parser.add_argument( 'filespec', nargs='?', default='*', help='whereis tries to identify filespec and sourcedir correctly regardless of order' )
-    parser.add_argument( 'sourceDir', nargs='?', default='./')
+    parser = argparse.ArgumentParser( prog=PROGRAM_NAME, description=PROGRAM_NAME + ' - ' + VERSION + ' - ' + COPYRIGHT_MESSAGE, prefix_chars=prefixList )
 
-    args = parser.parse_args( )
+    parser.add_argument( argumentPrefix + '1', '--find_one', action='store_true' )
+    parser.add_argument( argumentPrefix + 'b', '--backup', action='store', default='' )
+    parser.add_argument( argumentPrefix + 'c', '--execute_command', action='store', default='' )
+    parser.add_argument( argumentPrefix + 'd', '--output_timestamp', action='store_const', const='m' )
+    parser.add_argument( argumentPrefix + 'D', choices='acm', default='m', help='output timestamp, a = last accessed, c = created, m = last modified' )
+    parser.add_argument( argumentPrefix + 'e', '--output_dir_totals', action='store_true' )
+    parser.add_argument( argumentPrefix + 'E', '--output_dir_totals_only', action='store_true' )
+    parser.add_argument( argumentPrefix + 'i', '--include_filespec', action='append', nargs="+" )
+    parser.add_argument( argumentPrefix + 'l', '--count_lines', action='store_true' )
+    parser.add_argument( argumentPrefix + 'Lf', '--file_count_length', type=int, default=defaultFileCountLength )
+    parser.add_argument( argumentPrefix + 'Ll', '--line_length', type=int, default=defaultLineLength )
+    parser.add_argument( argumentPrefix + 'Ln', '--line_count_length', type=int, default=defaultLineCountLength )
+    parser.add_argument( argumentPrefix + 'Lz', '--file_size_length', type=int, default=defaultFileSizeLength )
+    parser.add_argument( argumentPrefix + 'm', '--no_commas', action='store_true' )
+    parser.add_argument( argumentPrefix + 'n', '--max_depth', type=int, default=0 )
+    parser.add_argument( argumentPrefix + 'r', '--output_relative_path', action='store_true' )
+#    parser.add_argument( argumentPrefix + 'R', '--rename', choices='dmnsu' )
+    parser.add_argument( argumentPrefix + 's', '--output_file_size', action='store_true' )
+    parser.add_argument( argumentPrefix + 't', '--output_totals', action='store_true' )
+    parser.add_argument( argumentPrefix + 'v', '--version', action='version', version='%(prog)s ' + VERSION )
+    parser.add_argument( argumentPrefix + 'vv', '--version_history', action='store_true' )
+    parser.add_argument( argumentPrefix + 'x', '--exclude_filespec', action='append', nargs="+" )
+    parser.add_argument( argumentPrefix + 'z', '--print_command_only', action='store_true' )
+    parser.add_argument( argumentPrefix + '?', '--print_help', action='store_true' )
+
+    # let's do a little preprocessing of the argument list because argparse is missing a few pieces of functionality
+    # the original whereis provided
+    new_argv = list( )
+    outputOrder = list( )
+
+    # grab the fileSpec and SourceDir and stick everything else in the list for argparse
+    prog = ''             
+    fileSpec = ''
+    sourceDir = ''
+
+    copyNextOne = False                    
+       
+    for arg in sys.argv:
+        if arg[ 0 ] not in prefixList:
+            if copyNextOne:
+                new_argv.append( arg )
+
+                if sourceDir == '':
+                    copyNextOne = False
+            elif prog == '':
+               prog = arg
+            elif fileSpec == '':
+                fileSpec = arg
+            elif sourceDir == '':
+                sourceDir = arg
+            else:
+                print( 'ignoring extra arg: ' + arg )
+        else:
+            new_argv.append( arg )
+            copyNextOne = arg[ 1 ] in 'bciLx'   # these are args that can have parameters
+
+            # build the output order list
+            if arg[ 1 ] == 'l':
+                outputOrder.append( outputLineCount )
+            elif arg[ 1 ] == 'd':
+                outputOrder.append( outputModified )
+            elif arg[ 1 ] == 's':
+                outputOrder.append( outputSize )
+            elif arg[ 1 ] == 'D':
+                if arg[ 2 ] == 'a':
+                    outputOrder.append( outputAccessed )
+                elif arg[ 2 ] == 'c':
+                    outputOrder.append( outputCreated )
+                else:
+                    outputOrder.append( outputModified )
+
+    # set defaults if necessary
+    if fileSpec == '':
+        fileSpec = '*'
+
+    if sourceDir == '':
+        sourceDir = '.'
+
+    # let argparse handle the rest
+    args = parser.parse_args( new_argv )
 
     if args.print_help:
         parser.print_help( )
@@ -229,9 +304,6 @@ def main( ):
     if args.version_history:
         printRevisionHistory( )
         exit( )
-
-    fileSpec = args.filespec
-    sourceDir = args.sourceDir
 
     if args.include_filespec == None:
         includeFileSpecs = list( )
@@ -261,6 +333,8 @@ def main( ):
     findOne = args.find_one
 
     printCommandOnly = args.print_command_only
+
+    maxDepth = args.max_depth
 
     if args.no_commas:
         formatString = 'd'
@@ -313,12 +387,25 @@ def main( ):
     foundOne = False
     printDate = False
 
+    # see http://stackoverflow.com/questions/5141437/filtering-os-walk-dirs-and-files to fix this
+
     # walk the tree
     for top, dirs, files in os.walk( sourceDir ):
         top = os.path.normpath( top )
 
+        relativePath = top[ len( sourceDir ) : ]
+
+        if maxDepth > 0:
+            depth = relativePath.count( os.sep ) + 1
+
+            if relativePath != '' and relativePath[ 0 ] != os.sep:
+                depth += 1
+
+            if depth > maxDepth:
+                continue
+
         if outputRelativePath:
-            currentDir = top
+            currentDir = top[ len( sourceDir ) : ]
         else:
             currentDir = os.path.abspath( top )
 
@@ -404,24 +491,20 @@ def main( ):
                     # this will clear the console line for output    
                     print( blankLine, end='\r', file=sys.stderr )
 
-                    if outputTimestamp == 'a':
-                        out_date = datetime.fromtimestamp( round( os.stat( absoluteFileName ).st_atime, 0 ) )
-                        printDate = True
-                    elif outputTimestamp == 'c':
-                        out_date = datetime.fromtimestamp( round( os.stat( absoluteFileName ).st_ctime, 0 ) )
-                        printDate = True
-                    elif outputTimestamp == 'm':
-                        out_date = datetime.fromtimestamp( round( os.stat( absoluteFileName ).st_mtime, 0 ) )
-                        printDate = True
-
-                    if printDate:
-                        print( out_date.isoformat( ' ' ), end=' ' )
-
-                    if outputFileSize:
-                        print( format( fileSize, fileSizeFormat ), end=' ' )
-
-                    if countLines: 
-                        print( format( lineCount, lineCountFormat ), end=' ' )
+                    for outputType in outputOrder:
+                        if outputType == outputAccessed:
+                            out_date = datetime.fromtimestamp( round( os.stat( absoluteFileName ).st_atime, 0 ) )
+                            print( out_date.isoformat( ' ' ), end=' ' )
+                        elif outputType == outputCreated:
+                            out_date = datetime.fromtimestamp( round( os.stat( absoluteFileName ).st_ctime, 0 ) )
+                            print( out_date.isoformat( ' ' ), end=' ' )
+                        elif outputType == outputModified:
+                            out_date = datetime.fromtimestamp( round( os.stat( absoluteFileName ).st_mtime, 0 ) )
+                            print( out_date.isoformat( ' ' ), end=' ' )
+                        elif outputType == outputSize:
+                            print( format( fileSize, fileSizeFormat ), end=' ' )
+                        elif outputType == outputLineCount:
+                             print( format( lineCount, lineCountFormat ), end=' ' )
 
                     #print( os.path.join( currentDir, repr( fileName )[ 1 : -1 ] ) )
                     if outputRelativePath:
@@ -437,10 +520,18 @@ def main( ):
         if outputDirTotals or outputDirTotalsOnly:
             with outputLock:
                 print( blankLine, end='\r', file=sys.stderr )
-                print( format( dirTotal, fileSizeFormat ), end=' ' )
 
-                if countLines: 
-                    print( format( dirLineTotal, lineCountFormat ), end=' ' )
+                for outputType in outputOrder:
+                    if outputType == outputAccessed:
+                        print( ' ' * dateLength, end = ' ' )
+                    elif outputType == outputCreated:
+                        print( ' ' * dateLength, end = ' ' )
+                    elif outputType == outputModified:
+                        print( ' ' * dateLength, end = ' ' )
+                    elif outputType == outputSize:
+                        print( format( dirTotal, fileSizeFormat ), end=' ' )
+                    elif outputType == outputLineCount:
+                         print( format( lineTotal, lineCountFormat ), end=' ' )
 
                 print( currentDir )
 
@@ -454,27 +545,33 @@ def main( ):
 
     if outputTotals:
         with outputLock:
-            print( blankLine, end='' )
+            print( blankLine, end='\r' )
 
-            if printDate:
-                print( '                    ', end='' )            
-
-            if outputFileSize: 
-                print( '-' * fileSizeLength, end=' ' )
-
-            if countLines:
-                print( '-' * lineCountLength, end=' ' )
+            for outputType in outputOrder:
+                if outputType == outputAccessed:
+                    print( ' ' * dateLength, end = ' ' )
+                elif outputType == outputCreated:
+                    print( ' ' * dateLength, end = ' ' )
+                elif outputType == outputModified:
+                    print( ' ' * dateLength, end = ' ' )
+                elif outputType == outputSize:
+                    print( ( '-' * fileSizeLength ), end=' ' )
+                elif outputType == outputLineCount:
+                    print( ( '-' * lineCountLength ), end=' ' )
 
             print( '-' * fileCountLength )
 
-            if printDate:
-                print( '                    ', end='' )            
-
-            if outputFileSize: 
-                print( format( grandDirTotal, fileSizeFormat ), end=' ' )
-
-            if countLines:
-                print( format( grandLineTotal, lineCountFormat ), end=' ' )
+            for outputType in outputOrder:
+                if outputType == outputAccessed:
+                    print( ' ' * dateLength, end = ' ' )
+                elif outputType == outputCreated:
+                    print( ' ' * dateLength, end = ' ' )
+                elif outputType == outputModified:
+                    print( ' ' * dateLength, end = ' ' )
+                elif outputType == outputSize:
+                    print( format( grandDirTotal, fileSizeFormat ), end=' ' )
+                elif outputType == outputLineCount:
+                    print( format( grandLineTotal, lineCountFormat ), end=' ' )
 
             if outputDirTotalsOnly:
                 print( format( currentDirCount, fileCountFormat ) )
