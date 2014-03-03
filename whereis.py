@@ -25,7 +25,7 @@ import win32file
 #//**********************************************************************
 
 PROGRAM_NAME = "whereis"
-VERSION = "3.8.5"
+VERSION = "3.8.6"
 COPYRIGHT_MESSAGE = "copyright (c) 2013 (1997), Rick Gutleber (rickg@his.com)"
 
 currentDir = ""
@@ -169,6 +169,7 @@ revision history:
     3.8.3: fixed use of undefined variable
     3.8.4: changed back to os.system( ) because subprocess doesn't work
     3.8.5: blankLine wasn't updated if /Ll was set
+    3.8.6: directory depth wasn't always calculated correctly, causing /n1 to fail
 
     Known bugs: 
         - The status line is occasionally not erased when the search is complete.
@@ -427,11 +428,11 @@ def main( ):
     for top, dirs, files in os.walk( sourceDir ):
         top = os.path.normpath( top )
 
-        # minor performance note:  we're still going to walk all the directories even if we are ignoring them
+        # performance note:  we're still going to walk all the directories even if we are ignoring them
         if maxDepth > 0:
             depth = top.count( os.sep ) + 1
 
-            if top != '' and top[ 0 ] != os.sep:
+            if top != '' and top[ 0 ] != os.sep and top[ 0 ] != '.':
                 depth += 1
 
             if depth > maxDepth:
