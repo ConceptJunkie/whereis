@@ -25,17 +25,17 @@ import win32file
 #//**********************************************************************
 
 PROGRAM_NAME = "whereis"
-VERSION = "3.8.6"
+VERSION = "3.8.7"
 COPYRIGHT_MESSAGE = "copyright (c) 2013 (1997), Rick Gutleber (rickg@his.com)"
 
 currentDir = ""
 currentDirCount = 0
 currentFileCount = 0
 
-defaultLineLength = 80                   
+defaultLineLength = 80
 defaultFileCountLength = 9
 defaultLineCountLength = 9
-defaultFileSizeLength = 14 
+defaultFileSizeLength = 14
 
 dateLength = 19
 attributesLength = 7
@@ -58,6 +58,11 @@ outputModified = 2
 outputSize = 3
 outputLineCount = 4
 outputAttributes = 5
+
+STD_DEV_NULL = ' > NUL'
+ERR_DEV_NULL = ' 2> NUL'
+
+TO_DEV_NULL = STD_DEV_NULL + ERR_DEV_NULL
 
 
 #//**********************************************************************
@@ -149,29 +154,30 @@ revision history:
            with '*' since they mean the same thing in Windows
     3.1.0: added -c and -b back (-c supports !!, !f, !q, !r )
     3.2.0: added -1 back
-    3.3.0: added !d, !D, !t, !T, !b, !c, !x, !p, !P, !/, !n, and !0 
+    3.3.0: added !d, !D, !t, !T, !b, !c, !x, !p, !P, !/, !n, and !0
     3.4.0: changed -l to -L, added -l
-    3.5.0: changed -L to -Ll, added -Lf, -Ln, -Lz, plus lots of bug fixing, 
+    3.5.0: changed -L to -Ll, added -Lf, -Ln, -Lz, plus lots of bug fixing,
            better exception handling
     3.5.1: fixed output (made sure all status stuff goes to stderr)
     3.5.2: bug fixes for directory size output
     3.5.3: bug fixes for directory size output and totalling
-    3.6.0: '/' as argument prefix for Windows, '-' for Linux, improved arg 
+    3.6.0: '/' as argument prefix for Windows, '-' for Linux, improved arg
            parsing, output order based on arg order, added /n
-    3.7.0: added /u, fixed /n, switched back to subprocess.call( ) from 
+    3.7.0: added /u, fixed /n, switched back to subprocess.call( ) from
            os.system( ), not sure which one is better
     3.8.0: added /a
     3.8.1: changed exit( ) to return because TCC uses shebang and calling
            exit( ) also causes TCC to exit, therefore python files can
-           be run directly from the TCC command-line without needing a 
+           be run directly from the TCC command-line without needing a
            batch file or alias
     3.8.2: small changes to status line, fixed /r
     3.8.3: fixed use of undefined variable
     3.8.4: changed back to os.system( ) because subprocess doesn't work
     3.8.5: blankLine wasn't updated if /Ll was set
     3.8.6: directory depth wasn't always calculated correctly, causing /n1 to fail
+    3.8.7: added TO_DEV_NULL
 
-    Known bugs: 
+    Known bugs:
         - The status line is occasionally not erased when the search is complete.
 ''' )
 
@@ -187,7 +193,7 @@ revision history:
 
 def statusProcess( ):
     global blankLine
-        
+
     while not stopEvent.isSet( ):
         with outputLock:
             output = format( currentDirCount ) + ' (' + format( currentFileCount ) + ') - ' + currentDir
@@ -218,7 +224,7 @@ def statusProcess( ):
 #  !b - base filename (no extension)
 #  !x - filename extension
 #  !p - relative path
-#  !P - absolute path 
+#  !P - absolute path
 #  !/ - OS-specific pathname separator
 #  !n - OS-specific line separator
 #  !0 - '/dev/null' (or OS equivalent)
@@ -234,7 +240,7 @@ def main( ):
     global blankLine
     global lineLength
 
-    blankLine = ' ' * ( defaultLineLength - 1 ) 
+    blankLine = ' ' * ( defaultLineLength - 1 )
 
     if os.name == 'nt':
         argumentPrefix = argumentPrefixWindows
@@ -278,12 +284,12 @@ def main( ):
     outputOrder = list( )
 
     # grab the fileSpec and SourceDir and stick everything else in the list for argparse
-    prog = ''             
+    prog = ''
     fileSpec = ''
     sourceDir = ''
 
-    copyNextOne = False                    
-       
+    copyNextOne = False
+
     for arg in sys.argv:
         if arg[ 0 ] not in prefixList:
             if copyNextOne:
@@ -332,7 +338,7 @@ def main( ):
 
     if args.print_help:
         parser.print_help( )
-        return            
+        return
 
     if args.version_history:
         printRevisionHistory( )
@@ -355,7 +361,7 @@ def main( ):
     lineLength = args.line_length
 
     if lineLength != defaultLineLength:
-        blankLine = ' ' * ( lineLength - 1 ) 
+        blankLine = ' ' * ( lineLength - 1 )
 
     countLines = args.count_lines
 
@@ -378,7 +384,7 @@ def main( ):
     if args.no_commas:
         formatString = 'd'
     else:
-        formatString = ',d'            
+        formatString = ',d'
 
     fileCountFormat = str( fileCountLength ) + formatString
     lineCountFormat = str( lineCountLength ) + formatString
@@ -466,7 +472,7 @@ def main( ):
         # now we have the list of files, so let's sort them and handle them
         for fileName in sorted( fileSet, key=str.lower ):
             currentFileCount += 1
-            
+
             absoluteFileName = os.path.join( currentAbsoluteDir, fileName )
             relativeFileName = os.path.join( currentRelativeDir, fileName )
 
@@ -476,7 +482,7 @@ def main( ):
 
             if fileAttributes:
                 attributeFlags = win32file.GetFileAttributes( absoluteFileName )
-                                           
+
             if executeCommand != '':
                 translatedCommand = executeCommand
 
@@ -501,7 +507,7 @@ def main( ):
                 translatedCommand = translatedCommand.replace( '!c', '"' + os.getcwd( ) + '"' )
                 translatedCommand = translatedCommand.replace( '!r', '"' + relativeFileName + '"' )
                 translatedCommand = translatedCommand.replace( '!f', '"' + absoluteFileName + '"' )
-                translatedCommand = translatedCommand.replace( '!b', '"' + base + '"' )              
+                translatedCommand = translatedCommand.replace( '!b', '"' + base + '"' )
                 translatedCommand = translatedCommand.replace( '!x', '"' + extension + '"' )
                 translatedCommand = translatedCommand.replace( '!p', '"' + currentRelativeDir + '"' )
                 translatedCommand = translatedCommand.replace( '!P', '"' + currentAbsoluteDir + '"' )
@@ -517,7 +523,7 @@ def main( ):
             if countLines:
                 lineCount = 0
 
-                for line in codecs.open( absoluteFileName, 'rU', 'ascii', 'replace'  ): 
+                for line in codecs.open( absoluteFileName, 'rU', 'ascii', 'replace'  ):
                     lineCount += 1
 
                 lineTotal = lineTotal + lineCount
@@ -525,15 +531,15 @@ def main( ):
             if backupLocation != '':
                 if not createdBackupDir:
                     backupTargetDir = os.path.join( backupLocation, top )
-                    print( 'mkdir -p "' + backupTargetDir + '" > NUL ' )
+                    print( 'mkdir -p "' + backupTargetDir + TO_DEV_NULL )
                     createdBackupDir = True
 
                 backupTargetFile = os.path.join( backupLocation, relativeFileName )
-                print( 'copy "' + absoluteFileName + '" "' + backupTargetFile + '" > NUL ' )
+                print( 'copy "' + absoluteFileName + '" "' + backupTargetFile + TO_DEV_NULL )
 
             if not outputDirTotalsOnly:
                 with outputLock:
-                    # this will clear the console line for output    
+                    # this will clear the console line for output
                     print( blankLine, end='\r', file=sys.stderr )
 
                     for outputType in outputOrder:
@@ -649,10 +655,10 @@ if __name__ == '__main__':
 
     try:
         main( )
-    except KeyboardInterrupt: 
+    except KeyboardInterrupt:
         pass
     finally:
-        stopEvent.set( )            
+        stopEvent.set( )
         # raise RuntimeError( "Unhandled exception" )
 
     stopEvent.set( )
