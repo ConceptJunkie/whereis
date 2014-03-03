@@ -17,16 +17,6 @@ import re
 import win32con
 import win32file
 
-noBlessings = False
-
-#try:
-#import colorama
-#import blessings
-#except:
-#    noBlessings = True
-
-#print( "********** " + str( noBlessings ) )
-
 
 #//**********************************************************************
 #//
@@ -35,11 +25,12 @@ noBlessings = False
 #//**********************************************************************
 
 PROGRAM_NAME = "whereis"
-VERSION = "3.8.1"
+VERSION = "3.8.2"
 COPYRIGHT_MESSAGE = "copyright (c) 2012 (1997), Rick Gutleber (rickg@his.com)"
 
 currentDir = ""
-currentDirCount = 1
+currentDirCount = 0
+currentFileCount = 0
 
 defaultLineLength = 80                   
 defaultFileCountLength = 9
@@ -174,13 +165,10 @@ revision history:
            exit( ) also causes TCC to exit, therefore python files can
            be run directly from the TCC command-line without needing a 
            batch file or alias
+    3.8.2: small changes to status line, fixed /r
 
     Known bugs: 
         - The status line is occasionally not erased when the search is complete.
-        - /r does not work unless the search directory is '.', trailing directory
-          separators (or lack thereof) might be part of the issue.
-        - The first character of the directory name gets clipped in the status 
-          line in some circumstances.
 ''' )
 
 
@@ -198,7 +186,7 @@ def statusProcess( ):
         
     while not stopEvent.isSet( ):
         with outputLock:
-            output = format( currentDirCount ) + " - " + currentDir
+            output = format( currentDirCount ) + ' (' + format( currentFileCount ) + ') - ' + currentDir
 
             if len( output ) > lineLength - 3:
                 output = output[ 0 : lineLength - 4 ] + '...'
@@ -238,6 +226,7 @@ def statusProcess( ):
 def main( ):
     global currentDir
     global currentDirCount
+    global currentFileCount
     global blankLine
     global lineLength
 
@@ -431,24 +420,26 @@ def main( ):
     for top, dirs, files in os.walk( sourceDir ):
         top = os.path.normpath( top )
 
-        relativePath = top[ len( sourceDir ) : ]
-
         # minor performance note:  we're still going to walk all the directories even if we are ignoring them
         if maxDepth > 0:
-            depth = relativePath.count( os.sep ) + 1
+            depth = top.count( os.sep ) + 1
 
-            if relativePath != '' and relativePath[ 0 ] != os.sep:
+            if top != '' and top[ 0 ] != os.sep:
                 depth += 1
 
             if depth > maxDepth:
                 continue
 
+        currentAbsoluteDir = os.path.abspath( top )
+        currentRelativeDir = os.path.relpath( top, sourceDir )
+
         if outputRelativePath:
-            currentDir = top[ len( sourceDir ) : ]
+            currentDir = currentRelativeDir
         else:
-            currentDir = os.path.abspath( top )
+            currentDir = currentAbsoluteDir
 
         currentDirCount += 1
+        currentFileCount = 0
 
         dirTotal = 0
         lineTotal = 0
@@ -466,8 +457,10 @@ def main( ):
 
         # now we have the list of files, so let's sort them and handle them
         for fileName in sorted( fileSet, key=str.lower ):
-            absoluteFileName = os.path.join( os.path.abspath( top ), fileName )
-            relativeFileName = os.path.join( top, fileName )
+            currentFileCount += 1
+            
+            absoluteFileName = os.path.join( currentAbsoluteDir, fileName )
+            relativeFileName = os.path.join( currentRelativeDir, fileName )
 
             fileSize = os.stat( absoluteFileName ).st_size
             dirTotal = dirTotal + fileSize
@@ -481,9 +474,6 @@ def main( ):
 
                 base, extension = os.path.splitext( fileName )
                 extension = extension.strip( )  # unix puts in a newline supposedly
-                absolutePathName = os.path.dirname( absoluteFileName )
-                relativePathName = os.path.dirname( relativeFileName )
-
                 translatedCommand = translatedCommand.replace( '!!', '!' )
                 translatedCommand = translatedCommand.replace( '!q', '"' )
                 translatedCommand = translatedCommand.replace( '!i', '<' )
@@ -505,8 +495,8 @@ def main( ):
                 translatedCommand = translatedCommand.replace( '!f', '"' + absoluteFileName + '"' )
                 translatedCommand = translatedCommand.replace( '!b', '"' + base + '"' )              
                 translatedCommand = translatedCommand.replace( '!x', '"' + extension + '"' )
-                translatedCommand = translatedCommand.replace( '!p', '"' + relativePathName + '"' )
-                translatedCommand = translatedCommand.replace( '!P', '"' + absolutePathName + '"' )
+                translatedCommand = translatedCommand.replace( '!p', '"' + currentRelativeDir + '"' )
+                translatedCommand = translatedCommand.replace( '!P', '"' + currentAbsoluteDir + '"' )
 
                 if not hideCommandOutput:
                     translatedCommand += ' > ' + os.devnull
@@ -638,6 +628,7 @@ def main( ):
                 print( format( currentDirCount, fileCountFormat ) )
             else:
                 print( format( fileCount, fileCountFormat ) )
+
 
 #//**********************************************************************
 #//
