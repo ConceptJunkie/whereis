@@ -35,7 +35,7 @@ noBlessings = False
 #//**********************************************************************
 
 PROGRAM_NAME = "whereis"
-VERSION = "3.8.0"
+VERSION = "3.8.1"
 COPYRIGHT_MESSAGE = "copyright (c) 2012 (1997), Rick Gutleber (rickg@his.com)"
 
 currentDir = ""
@@ -167,14 +167,20 @@ revision history:
     3.5.3: bug fixes for directory size output and totalling
     3.6.0: '/' as argument prefix for Windows, '-' for Linux, improved arg 
            parsing, output order based on arg order, added /n
-    3.7.0: added /u, switched back to subprocess.call( ) from os.system( ), not
-           sure which one is better
+    3.7.0: added /u, fixed /n, switched back to subprocess.call( ) from 
+           os.system( ), not sure which one is better
     3.8.0: added /a
+    3.8.1: changed exit( ) to return because TCC uses shebang and calling
+           exit( ) also causes TCC to exit, therefore python files can
+           be run directly from the TCC command-line without needing a 
+           batch file or alias
 
     Known bugs: 
-        - The status line is occasionally not erased when the search is complete
+        - The status line is occasionally not erased when the search is complete.
         - /r does not work unless the search directory is '.', trailing directory
-          separators (or lack thereof) might be part of the issue
+          separators (or lack thereof) might be part of the issue.
+        - The first character of the directory name gets clipped in the status 
+          line in some circumstances.
 ''' )
 
 
@@ -331,11 +337,11 @@ def main( ):
 
     if args.print_help:
         parser.print_help( )
-        exit( )
+        return            
 
     if args.version_history:
         printRevisionHistory( )
-        exit( )
+        return
 
     # let's handle all the flags and values parsed off the command-line
     if args.include_filespec == None:
@@ -398,11 +404,11 @@ def main( ):
     # a little validation before we start
     if not os.path.isdir( sourceDir ):
         print( "whereis: source directory '" + sourceDir + "' does not exist or cannot be accessed", file=sys.stderr )
-        exit( )
+        return
 
     if ( backupLocation != '' ) and ( not os.path.isdir( backupLocation ) ):
         print( "whereis: backup location '" + backupLocation + "' does not exist or cannot be accessed", file=sys.stderr )
-        exit( )
+        return
 
     # start status thread
     blankLine = ' ' * ( lineLength - 1 ) 
@@ -653,5 +659,4 @@ if __name__ == '__main__':
     stopEvent.set( )
 
     print( blankLine, end='\r', file=sys.stderr )   # clear the status output
-
 
