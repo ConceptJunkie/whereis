@@ -25,7 +25,7 @@ import win32file
 #//**********************************************************************
 
 PROGRAM_NAME = "whereis"
-VERSION = "3.8.3"
+VERSION = "3.8.5"
 COPYRIGHT_MESSAGE = "copyright (c) 2013 (1997), Rick Gutleber (rickg@his.com)"
 
 currentDir = ""
@@ -167,6 +167,8 @@ revision history:
            batch file or alias
     3.8.2: small changes to status line, fixed /r
     3.8.3: fixed use of undefined variable
+    3.8.4: changed back to os.system( ) because subprocess doesn't work
+    3.8.5: blankLine wasn't updated if /Ll was set
 
     Known bugs: 
         - The status line is occasionally not erased when the search is complete.
@@ -350,6 +352,9 @@ def main( ):
     fileSizeLength = args.file_size_length
     lineCountLength = args.line_count_length
     lineLength = args.line_length
+
+    if lineLength != defaultLineLength:
+        blankLine = ' ' * ( lineLength - 1 ) 
 
     countLines = args.count_lines
 
