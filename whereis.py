@@ -19,7 +19,7 @@ import time
 #//**********************************************************************
 
 PROGRAM_NAME = "whereis"
-VERSION = "3.0.0"
+VERSION = "3.0.1"
 COPYRIGHT_MESSAGE = "copyright (c) 2012 (1997), Rick Gutleber (rickg@his.com)"
 
 currentDir = ""
@@ -112,8 +112,9 @@ revision history:
     2.1.1 : added depth limiter command (added a numerical arg to /n)
     2.1.2 : added /N rename special command
     3.0.0 : port to python, only some features have been ported so far,
-            but about 90% of what I actually use''' )
-
+            but about 90% of what I actually use
+    3.0.1 : bugfixes for directory totalling and explicitly replacing '*.*' 
+            with '*' since they mean the same thing in Windows''' )
 
 #//**********************************************************************
 #//
@@ -131,7 +132,7 @@ def statusProcess( ):
                 output = format( currentDirCount ) + " - " + currentDir
 
                 if len( output ) > lineLength - 3:
-                    output = output[ 0 : lineLength - 3 ] + '...'
+                    output = output[ 0 : lineLength - 4 ] + '...'
 
                 print( ' ' * ( lineLength - 1 ) + '\r' + output, end='\r', file=sys.stderr )
 
@@ -212,6 +213,8 @@ def main( ):
     if all( ( c in './\\' ) for c in fileSpec ):
         fileSpec = '*'
 
+    fileSpec = fileSpec.replace( '*.*', '*' )    # *.* and * mean the same thing on Windows
+
     #print( "sourceDir: " + sourceDir )
     #print( "fileSpec: " + fileSpec )
 
@@ -258,8 +261,6 @@ def main( ):
                     out_date = datetime.datetime.fromtimestamp( round( os.stat( fullpath ).st_mtime, 0 ) )
                     printDate = True
 
-                grandTotal = grandTotal + fileSize
-
                 with outputLock:
                     if printDate:
                         print( out_date.isoformat( microsecond=0 ), end='' )
@@ -269,21 +270,22 @@ def main( ):
 
                     print( os.path.join( currentDir, repr( fileName )[ 1 : -1 ] ) )
 
-            if outputTotals:
-                grandTotal = grandTotal + dirTotal
-                currentDirCount += 1
+        if outputDirTotals or outputDirTotalsOnly:
+            with outputLock:
+                print( format( dirTotal, '14,d' ), end=' ' )
+                print( currentDir )
 
-            if outputDirTotals or outputDirTotalsOnly:
-                with outputLock:
-                    print( format( dirTotal, '14,d' ), end=' ' )
-                    print( currentDir )
+        if outputTotals:
+            grandTotal = grandTotal + dirTotal
+            currentDirCount += 1
+
 
     if outputTotals:
         with outputLock:
             if outputDirTotalsOnly:
                 print( '-------------- -----' )
                 print( format( grandTotal, '14,d' ), end=' ' )
-                print( format( currentDirCcount, ',d' ) )
+                print( format( currentDirCount, ',d' ) )
             else:
                 if outputFileSize:
                     print( '-------------- -----' )
