@@ -18,6 +18,53 @@ import win32con
 import win32file
 
 
+#import fnmatch
+#import os
+#import os.path
+#import re
+#
+#includes = ['*.doc', '*.odt'] # for files only
+#excludes = ['/home/paulo-freitas/Documents'] # for dirs and files
+#
+## transform glob patterns to regular expressions
+#includes = r'|'.join([fnmatch.translate(x) for x in includes])
+#excludes = r'|'.join([fnmatch.translate(x) for x in excludes]) or r'$.'
+#
+#for root, dirs, files in os.walk('/home/paulo-freitas'):
+#
+#    # exclude dirs
+#    dirs[:] = [os.path.join(root, d) for d in dirs]
+#    dirs[:] = [d for d in dirs if not re.match(excludes, d)]
+#
+#    # exclude/include files
+#    files = [os.path.join(root, f) for f in files]
+#    files = [f for f in files if not re.match(excludes, f)]
+#    files = [f for f in files if re.match(includes, f)]
+#
+#    for fname in files:
+#        print fname
+
+
+#import os
+#
+#def walklevel(some_dir, level=1):
+#    some_dir = some_dir.rstrip(os.path.sep)
+#    assert os.path.isdir(some_dir)
+#    num_sep = some_dir.count(os.path.sep)
+#    for root, dirs, files in os.walk(some_dir):
+#        yield root, dirs, files
+#        num_sep_this = root.count(os.path.sep)
+#        if num_sep + level <= num_sep_this:
+#           del dirs[:]
+
+
+#def _dir_list(self, dir_name, whitelist):
+#    outputList = []
+#    for root, dirs, files in os.walk(dir_name):
+#        dirs[:] = [d for d in dirs if is_good(d)]
+#        for f in files:
+#            do_stuff()
+
 #//******************************************************************************
 #//
 #//  globals/constants
@@ -25,7 +72,7 @@ import win32file
 #//******************************************************************************
 
 PROGRAM_NAME = "whereis"
-VERSION = "3.8.9"
+VERSION = "3.9.0"
 COPYRIGHT_MESSAGE = "copyright (c) 2013 (1997), Rick Gutleber (rickg@his.com)"
 
 currentDir = ""
@@ -74,6 +121,9 @@ ERR_DEV_NULL = ' 2> NUL'
 TO_DEV_NULL = STD_DEV_NULL + ERR_DEV_NULL
 
 outputOrder = list( )
+
+quiet = False
+statusLineDirty = False
 
 
 #//******************************************************************************
@@ -192,6 +242,9 @@ revision history:
            and just pretends the filesize is 0
     3.8.9: Increased default file length of 16... 100s of GB.  It happens
            frequently enough when summing directory sizes.
+    3.8.10: status line cleanup is only done when needed
+    3.9.0: added /q, although the 3.8.10 fix eliminated the original reason
+           for adding it
 
     Known bugs:
         - The status line is occasionally not erased when the search is complete.
@@ -234,15 +287,16 @@ def outputTotalStats( size = 0, lines = 0, separator = False ):
 
 #//**********************************************************************
 #//
-#//  updateStatus
+#//  statusProcess
 #//
-#//  Sometimes whereis can be slow so we update the current directory
-#//  count to stderr every 0.5 seconds.
+#//  Sometimes whereis can be slow, so we update the current directory
+#//  count to stderr every 0.5 seconds unless /q is used.
 #//
 #//**********************************************************************
 
 def statusProcess( ):
     global blankLine
+    global statusLineDirty
 
     while not stopEvent.isSet( ):
         with outputLock:
@@ -252,6 +306,8 @@ def statusProcess( ):
                 output = output[ 0 : lineLength - 4 ] + '...'
 
             print( blankLine + '\r' + output, end='\r', file=sys.stderr )
+
+            statusLineDirty = True
 
         stopEvent.wait( 0.5 )
 
@@ -299,6 +355,9 @@ def main( ):
     global lineCountFormat
     global fileSizeFormat
 
+    global quiet
+    global statusLineDirty
+
     blankLine = ' ' * ( defaultLineLength - 1 )
 
     if os.name == 'nt':
@@ -326,6 +385,7 @@ def main( ):
     parser.add_argument( argumentPrefix + 'Lz', '--file_size_length', type=int, default=defaultFileSizeLength )
     parser.add_argument( argumentPrefix + 'm', '--no_commas', action='store_true' )
     parser.add_argument( argumentPrefix + 'n', '--max_depth', type=int, const=1, default=0, nargs='?' )
+    parser.add_argument( argumentPrefix + 'q', '--quiet', action='store_true' )
     parser.add_argument( argumentPrefix + 'r', '--output_relative_path', action='store_true' )
 #    parser.add_argument( argumentPrefix + 'R', '--rename', choices='dmnsu' )
     parser.add_argument( argumentPrefix + 's', '--output_file_size', action='store_true' )
@@ -338,7 +398,7 @@ def main( ):
     parser.add_argument( argumentPrefix + '?', '--print_help', action='store_true' )
 
     # let's do a little preprocessing of the argument list because argparse is missing a few pieces of functionality
-    # the original whereis provided
+    # the original whereis provided... specifically the ability to determine the order in which arguments occur
     new_argv = list( )
 
     # grab the fileSpec and SourceDir and stick everything else in the list for argparse
@@ -434,6 +494,7 @@ def main( ):
     findOne = args.find_one
     hideCommandOutput = args.hide_command_output
     fileAttributes = args.file_attributes
+    quiet = args.quiet
 
     printCommandOnly = args.print_command_only
 
@@ -473,7 +534,8 @@ def main( ):
         return
 
     # start status thread
-    threading.Thread( target = statusProcess ).start( )
+    if not quiet:
+        threading.Thread( target = statusProcess ).start( )
 
     fileCount = 0
     lineTotal = 0
@@ -602,8 +664,10 @@ def main( ):
 
             if not outputDirTotalsOnly:
                 with outputLock:
-                    # this will clear the console line for output
-                    print( blankLine, end='\r', file=sys.stderr )
+                    # this will clear the console line for output, if necessary
+                    if not quiet and statusLineDirty:
+                        print( blankLine, end='\r', file=sys.stderr )
+                        statusLineDirty = False
 
                     for outputType in outputOrder:
                         if outputType == outputAccessed:
@@ -628,7 +692,6 @@ def main( ):
                                    ( 's' if attributeFlags & win32con.FILE_ATTRIBUTE_SYSTEM else '-' ) +
                                    ( 't' if attributeFlags & win32con.FILE_ATTRIBUTE_TEMPORARY else '-' ), end=' ' )
 
-                    #print( os.path.join( currentDir, repr( fileName )[ 1 : -1 ] ) )
                     if outputRelativePath:
                         print( repr( relativeFileName ).replace( '\\\\', '\\' )[ 1 : -1 ] )
                     else:
@@ -641,7 +704,9 @@ def main( ):
 
         if outputDirTotals or outputDirTotalsOnly:
             with outputLock:
-                print( blankLine, end='\r', file=sys.stderr )
+                if not quiet and statusLineDirty:
+                    print( blankLine, end='\r', file=sys.stderr )
+                    statusLineDirty = False
 
                 outputTotalStats( dirTotal, lineTotal )
 
@@ -657,7 +722,9 @@ def main( ):
 
     if outputTotals:
         with outputLock:
-            print( blankLine, end='\r' )
+            if not quiet and statusLineDirty:
+                print( blankLine, end='\r', file=sys.stderr )
+                statusLineDirty = False
 
             outputTotalStats( separator = True )
 
@@ -690,5 +757,6 @@ if __name__ == '__main__':
 
     stopEvent.set( )
 
-    print( blankLine, end='\r', file=sys.stderr )   # clear the status output
+    if not quiet and statusLineDirty:
+        print( blankLine, end='\r', file=sys.stderr )   # clear the status output
 
