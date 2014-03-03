@@ -10,6 +10,7 @@ import reprlib                      # prevents barfing on weird characters in fi
 import sys
 import threading
 import time
+import re
 
 
 #//**********************************************************************
@@ -19,7 +20,7 @@ import time
 #//**********************************************************************
 
 PROGRAM_NAME = "whereis"
-VERSION = "3.0.1"
+VERSION = "3.1.0 alpha"
 COPYRIGHT_MESSAGE = "copyright (c) 2012 (1997), Rick Gutleber (rickg@his.com)"
 
 currentDir = ""
@@ -113,8 +114,10 @@ revision history:
     2.1.2 : added /N rename special command
     3.0.0 : port to python, only some features have been ported so far,
             but about 90% of what I actually use
-    3.0.1 : bugfixes for directory totalling and explicitly replacing '*.*' 
-            with '*' since they mean the same thing in Windows''' )
+    3.0.1 : bugfixes for directory totalling and explicitly replacing '*.*'
+            with '*' since they mean the same thing in Windows
+    3.1.0 : added /c and /b back
+''' )
 
 #//**********************************************************************
 #//
@@ -143,6 +146,29 @@ def statusProcess( ):
 #//
 #//**********************************************************************
 
+#  !! - single exclamation point
+#  !f - fully qualified filespec
+#  !q - double quote character (")
+#  !r - relative filespec
+
+
+#  old ones
+#  !! - insert fully qualified filename
+#  !C - insert current directory
+#  !d - time of day (4-digit military time based on when the program started)
+#  !D - date (YYYYMMDD based on when the program started)
+#  !f - insert filename, no extension, no path
+#  !F - insert filename, no path
+#  !P - insert filename, path only
+#  !p - insert filename, path only, relative to search base path
+#  !Q - insert '"'
+#  !r - insert filename, relative to search base path
+#  !t - text string for /C
+#  !T - quoted text string for /C
+#  !X - insert filename, no extension
+#  !x - insert filename extension
+
+
 def main( ):
     global currentDir
     global currentDirCount
@@ -150,9 +176,8 @@ def main( ):
 
     parser = argparse.ArgumentParser( prog=PROGRAM_NAME, description=PROGRAM_NAME + ' - ' + VERSION + ' - ' + COPYRIGHT_MESSAGE )
 
-#    parser.add_argument( '-b', '--backup', action='store' )
-#    parser.add_argument( '-c', '--execute_command', action='store' )
-#    parser.add_argument( '-C', '--print_command', action='store' )
+    parser.add_argument( '-b', '--backup', action='store', default='' )
+    parser.add_argument( '-c', '--execute_command', action='store', default='' )
     parser.add_argument( '-d', '--output_timestamp', action='store_const', const='m' )
     parser.add_argument( '-D', choices='acm', default='m', help='output timestamp, a = last accessed, c = created, m = last modified' )
     parser.add_argument( '-e', '--output_dir_totals', action='store_true' )
@@ -165,20 +190,22 @@ def main( ):
     parser.add_argument( '-s', '--output_file_size', action='store_true' )
     parser.add_argument( '-t', '--output_totals', action='store_true' )
     parser.add_argument( '-v', '--version', action='version', version='%(prog)s ' + VERSION )
+    parser.add_argument( '-vv', '--version_history', action='store_true' )
     parser.add_argument( '-x', '--exclude_filespec', action='append' )
-    parser.add_argument( '-?', '--print_revision_history', action='store_true' )
+    parser.add_argument( '-z', '--print_command_only', action='store_true' )
+    parser.add_argument( '-?', '--print_help', action='store_true' )
     parser.add_argument( 'filespec', nargs='?', default='*', help='whereis tries to identify filespec and sourcedir correctly regardless of order' )
     parser.add_argument( 'sourceDir', nargs='?', default='./')
 
     args = parser.parse_args( )
 
-    if args.print_revision_history:
+    if args.print_help:
         parser.print_help( )
-        printRevisionHistory( )
         exit( )
 
-    # start status thread
-    threading.Thread( target = statusProcess ).start( )
+    if args.version_history:
+        printRevisionHistory( )
+        exit( )
 
     fileSpec = args.filespec
     sourceDir = args.sourceDir
@@ -196,6 +223,10 @@ def main( ):
     outputTimestamp = args.output_timestamp
     outputFileSize = args.output_file_size
     outputDirTotals = args.output_dir_totals
+    executeCommand = args.execute_command
+    backupLocation = args.backup
+
+    printCommandOnly = args.print_command_only
 
     fileNameRepr = reprlib.Repr( )
     fileNameRepr = lineLength - 1
@@ -215,6 +246,17 @@ def main( ):
 
     fileSpec = fileSpec.replace( '*.*', '*' )    # *.* and * mean the same thing on Windows
 
+    if not os.path.isdir( sourceDir ):
+        print( "whereis: source directory '" + sourceDir + "' does not exist or cannot be accessed", file=sys.stderr )
+        exit( )
+
+    if ( backupLocation != '' ) and ( not os.path.isdir( backupLocation ) ):
+        print( "whereis: backup location '" + backupLocation + "' does not exist or cannot be accessed", file=sys.stderr )
+        exit( )
+
+    # start status thread
+    threading.Thread( target = statusProcess ).start( )
+
     #print( "sourceDir: " + sourceDir )
     #print( "fileSpec: " + fileSpec )
 
@@ -224,6 +266,8 @@ def main( ):
 
     # walk the tree
     for top, dirs, files in os.walk( sourceDir ):
+        top = os.path.normpath( top )
+
         if outputRelativePath:
             currentDir = top
         else:
@@ -241,12 +285,36 @@ def main( ):
         for excludeFileSpec in excludeFileSpecs:
             fileSet = fileSet.difference( fnmatch.filter( files, excludeFileSpec ) )
 
+        createdBackupDir = ( top == '.' )
+
         for fileName in sorted( fileSet, key=str.lower ):
             fullpath = os.path.join( top, fileName )
 
             fileSize = os.stat( fullpath ).st_size
             dirTotal = dirTotal + fileSize
             fileCount += 1
+
+            if executeCommand != '':
+                translatedCommand = executeCommand
+
+                translatedCommand = translatedCommand.replace( '!!', '!' )
+                translatedCommand = translatedCommand.replace( '!q', '"' )
+                translatedCommand = translatedCommand.replace( '!r', os.path.join( top, fileName ) )
+                translatedCommand = translatedCommand.replace( '!f', os.path.join( os.path.abspath( top ), fileName ) )
+
+                if printCommandOnly:
+                    print( translatedCommand )
+                else:
+                    os.system( os.environ['COMSPEC'] + ' /c ' + translatedCommand + ' > NUL ' )
+
+            if backupLocation != '':
+                if not createdBackupDir:
+                    backupTargetDir = os.path.join( backupLocation, top )
+                    print( os.environ['COMSPEC'] + ' /c mkdir -p "' + backupTargetDir + '" > NUL ' )
+                    createdBackupDir = True
+
+                backupTargetFile = os.path.join( backupLocation, fileName )
+                print( os.environ['COMSPEC'] + ' /c copy "' + fileName + '" "' + backupTargetFile + '" > NUL ' )
 
             if not outputDirTotalsOnly:
                 printDate = False
