@@ -506,7 +506,7 @@ def main( ):
                 if printCommandOnly:
                     print( ' ' * ( lineLength - 1 ) + '\r' + translatedCommand )
                 else:
-                    subprocess.call( translatedCommand )
+                    os.system( translatedCommand )
 
             if countLines:
                 lineCount = 0
