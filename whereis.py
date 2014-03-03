@@ -311,6 +311,7 @@ def main( ):
     currentDir = os.path.abspath( sourceDir )
 
     foundOne = False
+    printDate = False
 
     # walk the tree
     for top, dirs, files in os.walk( sourceDir ):
@@ -402,8 +403,6 @@ def main( ):
                 with outputLock:
                     # this will clear the console line for output    
                     print( blankLine, end='\r', file=sys.stderr )
-
-                    printDate = False
 
                     if outputTimestamp == 'a':
                         out_date = datetime.fromtimestamp( round( os.stat( absoluteFileName ).st_atime, 0 ) )
