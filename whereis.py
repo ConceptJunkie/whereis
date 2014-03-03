@@ -192,7 +192,7 @@ def main( ):
     parser.add_argument( '-D', choices='acm', default='m', help='output timestamp, a = last accessed, c = created, m = last modified' )
     parser.add_argument( '-e', '--output_dir_totals', action='store_true' )
     parser.add_argument( '-E', '--output_dir_totals_only', action='store_true' )
-    parser.add_argument( '-i', '--include_filespec', action='append', nargs='*', default='' )
+    parser.add_argument( '-i', '--include_filespec', action='append', nargs="+" )
     parser.add_argument( '-L', '--line_length', type=int, default=80 )
     parser.add_argument( '-l', '--count_lines', action='store_true' )
 #    parser.add_argument( '-n', '--recurse_levels', type=int, default=0 )
@@ -202,7 +202,7 @@ def main( ):
     parser.add_argument( '-t', '--output_totals', action='store_true' )
     parser.add_argument( '-v', '--version', action='version', version='%(prog)s ' + VERSION )
     parser.add_argument( '-vv', '--version_history', action='store_true' )
-    parser.add_argument( '-x', '--exclude_filespec', action='append' )
+    parser.add_argument( '-x', '--exclude_filespec', action='append', nargs="+" )
     parser.add_argument( '-z', '--print_command_only', action='store_true' )
     parser.add_argument( '-?', '--print_help', action='store_true' )
     parser.add_argument( 'filespec', nargs='?', default='*', help='whereis tries to identify filespec and sourcedir correctly regardless of order' )
@@ -220,14 +220,19 @@ def main( ):
 
     fileSpec = args.filespec
     sourceDir = args.sourceDir
-    includeFileSpecs = args.include_filespec
-    lineLength = args.line_length
-    countLines = args.count_lines
+
+    if args.include_filespec == None:
+        includeFileSpecs = list( )
+    else:
+        includeFileSpecs = args.include_filespec[ 0 ]
 
     if args.exclude_filespec == None:
         excludeFileSpecs = list( )
     else:
-        excludeFileSpecs = args.exclude_filespec
+        excludeFileSpecs = args.exclude_filespec[ 0 ]
+
+    lineLength = args.line_length
+    countLines = args.count_lines
 
     outputDirTotalsOnly = args.output_dir_totals_only
     outputRelativePath = args.output_relative_path
@@ -446,10 +451,10 @@ def main( ):
 #//**********************************************************************
 
 if __name__ == '__main__':
-    try:
-        main( )
-    except:
-        pass
+    #try:
+    main( )
+    #except:
+    #    pass
 
     stopEvent.set( )
     print( ' ' * ( lineLength - 1 ) + '\r', end='\r', file=sys.stderr )   # clear the status output
