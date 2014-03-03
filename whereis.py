@@ -330,10 +330,10 @@ def main( ):
         fileSet = set( fnmatch.filter( files, fileSpec ) )
 
         for includeFileSpec in includeFileSpecs:
-            fileSet = fileSet.union( fnmatch.filter( files, includeFileSpec ) )
+            fileSet = fileSet.union( set( fnmatch.filter( files, includeFileSpec ) ) )
 
         for excludeFileSpec in excludeFileSpecs:
-            fileSet = fileSet.difference( fnmatch.filter( files, excludeFileSpec ) )
+            fileSet = fileSet.difference( set( fnmatch.filter( files, excludeFileSpec ) ) )
 
         createdBackupDir = ( top == '.' )
 
