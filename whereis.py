@@ -25,8 +25,8 @@ import win32file
 #//**********************************************************************
 
 PROGRAM_NAME = "whereis"
-VERSION = "3.8.2"
-COPYRIGHT_MESSAGE = "copyright (c) 2012 (1997), Rick Gutleber (rickg@his.com)"
+VERSION = "3.8.3"
+COPYRIGHT_MESSAGE = "copyright (c) 2013 (1997), Rick Gutleber (rickg@his.com)"
 
 currentDir = ""
 currentDirCount = 0
@@ -166,6 +166,7 @@ revision history:
            be run directly from the TCC command-line without needing a 
            batch file or alias
     3.8.2: small changes to status line, fixed /r
+    3.8.3: fixed use of undefined variable
 
     Known bugs: 
         - The status line is occasionally not erased when the search is complete.
@@ -229,6 +230,8 @@ def main( ):
     global currentFileCount
     global blankLine
     global lineLength
+
+    blankLine = ' ' * ( defaultLineLength - 1 ) 
 
     if os.name == 'nt':
         argumentPrefix = argumentPrefixWindows
@@ -400,7 +403,6 @@ def main( ):
         return
 
     # start status thread
-    blankLine = ' ' * ( lineLength - 1 ) 
     threading.Thread( target = statusProcess ).start( )
 
     fileCount = 0
