@@ -72,7 +72,7 @@ import win32file
 #//******************************************************************************
 
 PROGRAM_NAME = "whereis"
-VERSION = "3.9.0"
+VERSION = "3.9.1"
 COPYRIGHT_MESSAGE = "copyright (c) 2013 (1997), Rick Gutleber (rickg@his.com)"
 
 currentDir = ""
@@ -124,6 +124,7 @@ outputOrder = list( )
 
 quiet = False
 statusLineDirty = False
+oldOutput = ''
 
 
 #//******************************************************************************
@@ -245,6 +246,7 @@ revision history:
     3.8.10: status line cleanup is only done when needed
     3.9.0: added /q, although the 3.8.10 fix eliminated the original reason
            for adding it
+    3.9.1: don't update the status line unless it's actually changed
 
     Known bugs:
         - The status line is occasionally not erased when the search is complete.
@@ -297,6 +299,7 @@ def outputTotalStats( size = 0, lines = 0, separator = False ):
 def statusProcess( ):
     global blankLine
     global statusLineDirty
+    global oldOutput
 
     while not stopEvent.isSet( ):
         with outputLock:
@@ -305,9 +308,11 @@ def statusProcess( ):
             if len( output ) > lineLength - 3:
                 output = output[ 0 : lineLength - 4 ] + '...'
 
-            print( blankLine + '\r' + output, end='\r', file=sys.stderr )
-
-            statusLineDirty = True
+            if output != oldOutput:
+                print( blankLine + '\r' + output, end='\r', file=sys.stderr )
+                sys.stderr.flush( )
+                statusLineDirty = True
+                oldOutput = output
 
         stopEvent.wait( 0.5 )
 
