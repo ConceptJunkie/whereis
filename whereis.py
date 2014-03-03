@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
-import datetime
+from datetime import datetime
 import fnmatch
 import locale
 import os
@@ -113,12 +113,12 @@ revision history:
     2.1.1 : added depth limiter command (added a numerical arg to /n)
     2.1.2 : added /N rename special command
     3.0.0 : port to python, only some features have been ported so far,
-            but about 90% of what I actually use, plus it's much faster(!)
+            but about 90% of what I actually use
     3.0.1 : bugfixes for directory totalling and explicitly replacing '*.*'
-            with '*' since they mean the same thing in Windows, but not in
-            Python's file matching
-    3.1.0 : added -c and -b back
+            with '*' since they mean the same thing in Windows
+    3.1.0 : added -c and -b back (-c supports !!, !f, !q, !r )
     3.2.0 : added -1 back
+    3.3.0 : added !d, !D, !t, !T, !b, !c, !x, !p, !P, !/, !n, and !0 
 ''' )
 
 
@@ -153,23 +153,23 @@ def statusProcess( ):
 #  !f - fully qualified filespec
 #  !q - double quote character (")
 #  !r - relative filespec
+#  !t - time of day (24-hour - HHMM) when app was started
+#  !T - time of day (24-hour - HHMMSS) when app was started
+#  !d - date (YYMMDD) when app was started
+#  !D - date (YYYYMMDD) when app was started
+#  !c - current working directory
+#  !b - base filename (no extension)
+#  !x - filename extension
+#  !p - relative path
+#  !P - absolute path 
+#  !/ - OS-specific pathname separator
+#  !n - OS-specific line separator
+#  !0 - '/dev/null' (or OS equivalent)
+#  !i - '<'
+#  !o - '>'
+#  !O - '>>'
+#  !| - '|'
 
-
-#  old ones
-#  !! - insert fully qualified filename
-#  !C - insert current directory
-#  !d - time of day (4-digit military time based on when the program started)
-#  !D - date (YYYYMMDD based on when the program started)
-#  !f - insert filename, no extension, no path
-#  !F - insert filename, no path
-#  !P - insert filename, path only
-#  !p - insert filename, path only, relative to search base path
-#  !Q - insert '"'
-#  !r - insert filename, relative to search base path
-#  !t - text string for /C
-#  !T - quoted text string for /C
-#  !X - insert filename, no extension
-#  !x - insert filename extension
 
 
 def main( ):
@@ -294,7 +294,6 @@ def main( ):
 
         createdBackupDir = ( top == '.' )
 
-        # we've identified the matching list of filenames, now we can start dealing with them
         for fileName in sorted( fileSet, key=str.lower ):
             fullpath = os.path.join( top, fileName )
 
@@ -305,15 +304,42 @@ def main( ):
             if executeCommand != '':
                 translatedCommand = executeCommand
 
+                absoluteFileName = os.path.join( os.path.abspath( top ), fileName )
+                relativeFileName = os.path.join( top, fileName )
+                base, extension = os.path.splitext( fileName )
+                extension = extension.strip( )  # unix puts in a newline supposedly
+                absolutePathName = os.path.dirname( absoluteFileName )
+                relativePathName = os.path.dirname( relativeFileName )
+
                 translatedCommand = translatedCommand.replace( '!!', '!' )
                 translatedCommand = translatedCommand.replace( '!q', '"' )
-                translatedCommand = translatedCommand.replace( '!r', os.path.join( top, fileName ) )
-                translatedCommand = translatedCommand.replace( '!f', os.path.join( os.path.abspath( top ), fileName ) )
+                translatedCommand = translatedCommand.replace( '!i', '<' )
+                translatedCommand = translatedCommand.replace( '!o', '>' )
+                translatedCommand = translatedCommand.replace( '!O', '>>' )
+                translatedCommand = translatedCommand.replace( '!|', '|' )
+
+                translatedCommand = translatedCommand.replace( '!/', os.sep )
+                translatedCommand = translatedCommand.replace( '!n', os.linesep )
+                translatedCommand = translatedCommand.replace( '!0', os.devnull )
+
+                translatedCommand = translatedCommand.replace( '!d', datetime.now( ).strftime( "%y%m%d" ) )
+                translatedCommand = translatedCommand.replace( '!D', datetime.now( ).strftime( "%Y%m%d" ) )
+                translatedCommand = translatedCommand.replace( '!t', datetime.now( ).strftime( "%H%M" ) )
+                translatedCommand = translatedCommand.replace( '!T', datetime.now( ).strftime( "%H%M%S" ) )
+
+                translatedCommand = translatedCommand.replace( '!c', os.getcwd( ) )
+                translatedCommand = translatedCommand.replace( '!r', relativeFileName )
+                translatedCommand = translatedCommand.replace( '!f', absoluteFileName )
+                translatedCommand = translatedCommand.replace( '!b', base )              
+                translatedCommand = translatedCommand.replace( '!x', extension )
+                translatedCommand = translatedCommand.replace( '!p', relativePathName )
+                translatedCommand = translatedCommand.replace( '!P', absolutePathName )
 
                 if printCommandOnly:
                     print( ' ' * ( lineLength - 1 ) + '\r' + translatedCommand )
                 else:
-                    os.system( translatedCommand + ' > NUL ' )
+                    #os.system( translatedCommand + ' > ' + os.devnull )
+                    os.system( translatedCommand + ' > ' + os.devnull )
 
             if backupLocation != '':
                 if not createdBackupDir:
@@ -330,13 +356,13 @@ def main( ):
                 printDate = False
 
                 if outputTimestamp == 'a':
-                    out_date = datetime.datetime.fromtimestamp( round( os.stat( fullpath ).st_atime, 0 ) )
+                    out_date = datetime.fromtimestamp( round( os.stat( fullpath ).st_atime, 0 ) )
                     printDate = True
                 elif outputTimestamp == 'c':
-                    out_date = datetime.datetime.fromtimestamp( round( os.stat( fullpath ).st_ctime, 0 ) )
+                    out_date = datetime.fromtimestamp( round( os.stat( fullpath ).st_ctime, 0 ) )
                     printDate = True
                 elif outputTimestamp == 'm':
-                    out_date = datetime.datetime.fromtimestamp( round( os.stat( fullpath ).st_mtime, 0 ) )
+                    out_date = datetime.fromtimestamp( round( os.stat( fullpath ).st_mtime, 0 ) )
                     printDate = True
 
                 with outputLock:
