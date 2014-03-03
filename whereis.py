@@ -21,12 +21,11 @@ import re
 #//**********************************************************************
 
 PROGRAM_NAME = "whereis"
-VERSION = "3.5.0"
+VERSION = "3.5.1"
 COPYRIGHT_MESSAGE = "copyright (c) 2012 (1997), Rick Gutleber (rickg@his.com)"
 
 currentDir = ""
 currentDirCount = 1
-blankLine = ""
 
 defaultLineLength = 80                   
 defaultFileCountLength = 9
@@ -129,6 +128,7 @@ revision history:
     3.4.0 : changed -l to -L, added -l
     3.5.0 : changed -L to -Ll, added -Lf, -Ln, -Lz, plus lots of bug fixing, 
             better exception handling
+    3.5.1 : fixed output (made sure all status stuff goes to stderr)
 ''' )
 
 
@@ -151,7 +151,7 @@ def statusProcess( ):
             if len( output ) > lineLength - 3:
                 output = output[ 0 : lineLength - 4 ] + '...'
 
-            print( blankLine + output, end='\r', file=sys.stderr )
+            print( blankLine + '\r' + output, end='\r', file=sys.stderr )
 
         stopEvent.wait( 0.5 )
 
@@ -298,7 +298,7 @@ def main( ):
         exit( )
 
     # start status thread
-    blankLine = ' ' * ( lineLength - 1 ) + '\r'
+    blankLine = ' ' * ( lineLength - 1 ) 
     threading.Thread( target = statusProcess ).start( )
 
     #print( "sourceDir: " + sourceDir )
@@ -379,7 +379,6 @@ def main( ):
                 if printCommandOnly:
                     print( ' ' * ( lineLength - 1 ) + '\r' + translatedCommand )
                 else:
-                    #os.system( translatedCommand + ' > ' + os.devnull )
                     os.system( translatedCommand + ' > ' + os.devnull )
 
             if countLines:
@@ -401,7 +400,8 @@ def main( ):
 
             if not outputDirTotalsOnly:
                 with outputLock:
-                    print( blankLine, end='' )
+                    # this will clear the console line for output    
+                    print( blankLine, end='\r', file=sys.stderr )
 
                     printDate = False
 
@@ -437,7 +437,7 @@ def main( ):
 
         if outputDirTotals or outputDirTotalsOnly:
             with outputLock:
-                print( blankLine, end='' )
+                print( blankLine, end='\r', file=sys.stderr )
                 print( format( dirTotal, fileSizeFormat ), end=' ' )
 
                 if countLines: 
@@ -482,7 +482,6 @@ def main( ):
             else:
                 print( format( fileCount, fileCountFormat ) )
 
-
 #//**********************************************************************
 #//
 #//  __main__
@@ -490,14 +489,18 @@ def main( ):
 #//**********************************************************************
 
 if __name__ == '__main__':
+    global blankLine
+
     try:
         main( )
     except KeyboardInterrupt: 
         pass
     finally:
         stopEvent.set( )            
+        # raise RuntimeError( "Unhandled exception" )
 
     stopEvent.set( )
-    print( ' ' * ( lineLength - 1 ) + '\r', end='\r', file=sys.stderr )   # clear the status output
+
+    print( blankLine, end='\r', file=sys.stderr )   # clear the status output
 
 
