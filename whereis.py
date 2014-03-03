@@ -20,7 +20,7 @@ import re
 #//**********************************************************************
 
 PROGRAM_NAME = "whereis"
-VERSION = "3.1.0 alpha"
+VERSION = "3.2.0"
 COPYRIGHT_MESSAGE = "copyright (c) 2012 (1997), Rick Gutleber (rickg@his.com)"
 
 currentDir = ""
@@ -113,11 +113,14 @@ revision history:
     2.1.1 : added depth limiter command (added a numerical arg to /n)
     2.1.2 : added /N rename special command
     3.0.0 : port to python, only some features have been ported so far,
-            but about 90% of what I actually use
+            but about 90% of what I actually use, plus it's much faster(!)
     3.0.1 : bugfixes for directory totalling and explicitly replacing '*.*'
-            with '*' since they mean the same thing in Windows
-    3.1.0 : added /c and /b back
+            with '*' since they mean the same thing in Windows, but not in
+            Python's file matching
+    3.1.0 : added -c and -b back
+    3.2.0 : added -1 back
 ''' )
+
 
 #//**********************************************************************
 #//
@@ -176,6 +179,7 @@ def main( ):
 
     parser = argparse.ArgumentParser( prog=PROGRAM_NAME, description=PROGRAM_NAME + ' - ' + VERSION + ' - ' + COPYRIGHT_MESSAGE )
 
+    parser.add_argument( '-1', '--find_one', action='store_true' )
     parser.add_argument( '-b', '--backup', action='store', default='' )
     parser.add_argument( '-c', '--execute_command', action='store', default='' )
     parser.add_argument( '-d', '--output_timestamp', action='store_const', const='m' )
@@ -225,6 +229,7 @@ def main( ):
     outputDirTotals = args.output_dir_totals
     executeCommand = args.execute_command
     backupLocation = args.backup
+    findOne = args.find_one
 
     printCommandOnly = args.print_command_only
 
@@ -264,6 +269,8 @@ def main( ):
     grandTotal = 0
     currentDir = os.path.abspath( sourceDir )
 
+    foundOne = False
+
     # walk the tree
     for top, dirs, files in os.walk( sourceDir ):
         top = os.path.normpath( top )
@@ -287,6 +294,7 @@ def main( ):
 
         createdBackupDir = ( top == '.' )
 
+        # we've identified the matching list of filenames, now we can start dealing with them
         for fileName in sorted( fileSet, key=str.lower ):
             fullpath = os.path.join( top, fileName )
 
@@ -303,20 +311,22 @@ def main( ):
                 translatedCommand = translatedCommand.replace( '!f', os.path.join( os.path.abspath( top ), fileName ) )
 
                 if printCommandOnly:
-                    print( translatedCommand )
+                    print( ' ' * ( lineLength - 1 ) + '\r' + translatedCommand )
                 else:
-                    os.system( os.environ['COMSPEC'] + ' /c ' + translatedCommand + ' > NUL ' )
+                    os.system( translatedCommand + ' > NUL ' )
 
             if backupLocation != '':
                 if not createdBackupDir:
                     backupTargetDir = os.path.join( backupLocation, top )
-                    print( os.environ['COMSPEC'] + ' /c mkdir -p "' + backupTargetDir + '" > NUL ' )
+                    print( 'mkdir -p "' + backupTargetDir + '" > NUL ' )
                     createdBackupDir = True
 
                 backupTargetFile = os.path.join( backupLocation, fileName )
-                print( os.environ['COMSPEC'] + ' /c copy "' + fileName + '" "' + backupTargetFile + '" > NUL ' )
+                print( 'copy "' + fileName + '" "' + backupTargetFile + '" > NUL ' )
 
             if not outputDirTotalsOnly:
+                print( ' ' * ( lineLength - 1 ), end='\r' )
+
                 printDate = False
 
                 if outputTimestamp == 'a':
@@ -338,8 +348,14 @@ def main( ):
 
                     print( os.path.join( currentDir, repr( fileName )[ 1 : -1 ] ) )
 
+            foundOne = True
+
+            if findOne:
+                break
+
         if outputDirTotals or outputDirTotalsOnly:
             with outputLock:
+                print( ' ' * ( lineLength - 1 ), end='\r' )
                 print( format( dirTotal, '14,d' ), end=' ' )
                 print( currentDir )
 
@@ -347,14 +363,19 @@ def main( ):
             grandTotal = grandTotal + dirTotal
             currentDirCount += 1
 
+        if foundOne and findOne:
+            break
 
     if outputTotals:
         with outputLock:
             if outputDirTotalsOnly:
+                print( ' ' * ( lineLength - 1 ), end='\r' )
                 print( '-------------- -----' )
                 print( format( grandTotal, '14,d' ), end=' ' )
                 print( format( currentDirCount, ',d' ) )
             else:
+                print( ' ' * ( lineLength - 1 ), end='\r' )
+
                 if outputFileSize:
                     print( '-------------- -----' )
                     print( format( grandTotal, '14,d' ), end=' ' )
