@@ -72,7 +72,7 @@ import win32file
 #//******************************************************************************
 
 PROGRAM_NAME = "whereis"
-VERSION = "3.9.2"
+VERSION = "3.9.3"
 COPYRIGHT_MESSAGE = "copyright (c) 2013 (1997), Rick Gutleber (rickg@his.com)"
 
 currentDir = ""
@@ -123,7 +123,6 @@ TO_DEV_NULL = STD_DEV_NULL + ERR_DEV_NULL
 
 outputOrder = list( )
 
-quiet = False
 statusLineDirty = False
 oldOutput = ''
 
@@ -250,6 +249,8 @@ revision history:
     3.9.1: don't update the status line unless it's actually changed
     3.9.2: handle stderr a little differently if stdout is being redirected
            since it doesn't need to be erased
+    3.9.3: stdout is redirected when it's being piped, so that change didn't
+           work so well
 
     Known bugs:
         - As of 3.9.2, stdout from an executed command (/c) doesn't show up
@@ -432,10 +433,8 @@ def main( ):
 
     global quiet
     global statusLineDirty
-    global redirected
 
     blankLine = ' ' * ( defaultLineLength - 1 )
-    redirected = False
 
     if os.name == 'nt':
         argumentPrefix = argumentPrefixWindows
@@ -589,7 +588,7 @@ def main( ):
     fileNameRepr = reprlib.Repr( )
     fileNameRepr = lineLength - 1    # sets max string length of repr
 
-    redirected = not sys.stdout.isatty( )
+    #redirected = not sys.stdout.isatty( )
 
     # try to identify source dir and filespec intelligently...
 
@@ -697,9 +696,7 @@ def main( ):
                     translatedCommand += ' > ' + os.devnull
 
                 if printCommandOnly:
-                    if not redirected:
-                        print( blankLine, end='\r', file=sys.stderr )
-
+                    print( blankLine, end='\r', file=sys.stderr )
                     print( translatedCommand )
                 else:
                     os.system( translatedCommand )
@@ -724,7 +721,7 @@ def main( ):
             if not outputDirTotalsOnly:
                 with outputLock:
                     # this will clear the console line for output, if necessary
-                    if not quiet and statusLineDirty and not redirected:
+                    if not quiet and statusLineDirty:
                         print( blankLine, end='\r', file=sys.stderr )
                         statusLineDirty = False
 
@@ -742,7 +739,7 @@ def main( ):
 
         if outputDirTotals or outputDirTotalsOnly:
             with outputLock:
-                if not quiet and statusLineDirty and not redirected:
+                if not quiet and statusLineDirty:
                     print( blankLine, end='\r', file=sys.stderr )
                     statusLineDirty = False
 
@@ -760,7 +757,7 @@ def main( ):
 
     if outputTotals:
         with outputLock:
-            if not quiet and statusLineDirty and not redirected:
+            if not quiet and statusLineDirty:
                 print( blankLine, end='\r', file=sys.stderr )
                 statusLineDirty = False
 
@@ -784,7 +781,7 @@ def main( ):
 
 if __name__ == '__main__':
     global blankLine
-    global redirected
+    global quiet
 
     try:
         main( )
@@ -796,6 +793,6 @@ if __name__ == '__main__':
 
     stopEvent.set( )
 
-    if not quiet and statusLineDirty and not redirected:
+    if not quiet:
         print( blankLine, end='\r', file=sys.stderr )   # clear the status output
 
