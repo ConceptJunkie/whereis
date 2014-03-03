@@ -16,6 +16,7 @@ import time
 import re
 import win32con
 import win32file
+
 #import win32_helper
 
 
@@ -73,7 +74,7 @@ import win32file
 #//******************************************************************************
 
 PROGRAM_NAME = 'whereis'
-VERSION = '3.9.5'
+VERSION = '3.9.6'
 COPYRIGHT_MESSAGE = 'copyright (c) 2013 (1997), Rick Gutleber (rickg@his.com)'
 
 currentDir = ''
@@ -254,10 +255,13 @@ revision history:
            work so well
     3.9.4: I had stopped using reprlib correctly... probably a long time ago.
     3.9.5: Minor bug fix with attributeFlags
+    3.9.6: Wrote help text to replace what argparse generates, because it's
+           pretty ugly and hard to read
 
     Known bugs:
         - As of 3.9.2, stdout from an executed command (/c) doesn't show up
         - As of 3.9.2, /es doesn't do the same thing as /e /s
+        - As of 3.9.6, /e doesn't seem to work at all, altohugh /E does
         - The original intent was to never have output wrap (according to /Ll
           or the default of 80), but this never took into account extra
           columns being output.
@@ -417,6 +421,112 @@ def statusProcess( ):
 
 #//******************************************************************************
 #//
+#//  printHelp
+#//
+#//******************************************************************************
+
+def printHelp( ):
+    print(
+'''
+usage:  whereis [options] [filespec] [target]
+
+Search for files with names matching 'filespec' in the location specified
+by 'target'.
+
+filespec defaults to '*.*'
+
+target defaults to '.'
+
+If only one argument is specified, whereis attempts to determine if it is a
+filespec or target.
+
+command-line options:
+
+    /?, /h, --print_help
+        output this help message and exit
+
+    /1, --find_one
+        quit after finding one file
+
+    /a, --file_attributes
+        print file attributes
+
+    /b dir, --backup dir
+        backup found files to a location relative to dir
+
+    /c command, --execute_command command
+        execute a command for each file (see -hh for details)
+
+    /D {a,c,m} --output_timestamp {a,c,m}
+        output file timestamp, a = last accessed, c = created, m = last
+        modified
+
+    /d, --output_timestamp
+        output file timestamp (equivalent to /Dm)
+
+    /e, --output_dir_totals
+        output totals for each directory
+
+    /E, --output_dir_totals_only
+        output totals for each directory and not for each file
+
+    /i filespec [filespec ...], --include_filespec fielspec [filespec ...]
+        include additional filespecs for searching
+
+    /l, --count_lines
+        output the line count of each file
+
+    /Lf n, --file_count_length n
+        set the amount of size of the file count column
+
+    /Ll n, --line_length n
+        set the default line length for displaying text (default is 80)
+
+    /Ln n, --line_count_length n
+        set the default size of the line count column
+
+    /Lz n, --file_size_length n
+        set the default size of the file size column
+
+    /m, --no_commas
+        display numerical values with no commas
+
+    /n [n], --max_depth [n]
+        maximum directory depth to recurse when searching, defaults to infinite
+        if /n is not specified or 1 directory if /n is specified with no value
+
+    /q, --quiet
+        suppress unnecessary output
+
+    /r, --output_relative_path
+        output a relative path to the current directory for files rather than
+        an absolute file path
+
+    /s, --output_file_size
+        output the file sizes in bytes
+
+    /t, --output_totals
+        output totals for all numerical vallues
+
+    /u, --hide_command_output
+        suppress output from commands (i.e. when using /c)
+
+    /v, --version
+        output the version number and exit
+
+    /vv, --version_history
+        output the version history
+
+    /x filespec [filespec ...], --exclude_filespec filespec [filespec ...]
+        exclude filespecs from searching
+
+    /z, --print_command_only
+        the same as /c, except the command is not executed, but output to the
+        console''' )
+
+
+#//******************************************************************************
+#//
 #//  main
 #//
 #//******************************************************************************
@@ -449,7 +559,8 @@ def main( ):
         argumentPrefix = argumentPrefixLinux
         prefixList = prefixListLinux
 
-    parser = argparse.ArgumentParser( prog=PROGRAM_NAME, description=PROGRAM_NAME + ' - ' + VERSION + ' - ' + COPYRIGHT_MESSAGE, prefix_chars=prefixList )
+    parser = argparse.ArgumentParser( prog=PROGRAM_NAME, description=PROGRAM_NAME + ' - ' + VERSION + ' - ' +
+                                      COPYRIGHT_MESSAGE, prefix_chars=prefixList, add_help=False )
 
     parser.add_argument( argumentPrefix + 'a', '--file_attributes', action='store_true' )
     parser.add_argument( argumentPrefix + '1', '--find_one', action='store_true' )
@@ -459,6 +570,7 @@ def main( ):
     parser.add_argument( argumentPrefix + 'D', choices='acm', default='m', help='output timestamp, a = last accessed, c = created, m = last modified' )
     parser.add_argument( argumentPrefix + 'e', '--output_dir_totals', action='store_true' )
     parser.add_argument( argumentPrefix + 'E', '--output_dir_totals_only', action='store_true' )
+    parser.add_argument( argumentPrefix + 'h', '--print_help2', action='store_true' )
     parser.add_argument( argumentPrefix + 'i', '--include_filespec', action='append', nargs="+" )
     parser.add_argument( argumentPrefix + 'l', '--count_lines', action='store_true' )
     parser.add_argument( argumentPrefix + 'Lf', '--file_count_length', type=int, default=defaultFileCountLength )
@@ -536,8 +648,10 @@ def main( ):
     # let argparse handle the rest
     args = parser.parse_args( new_argv )
 
-    if args.print_help:
-        parser.print_help( )
+    quiet = args.quiet
+
+    if args.print_help or args.print_help2:
+        printHelp( )
         return
 
     if args.version_history:
@@ -576,7 +690,6 @@ def main( ):
     findOne = args.find_one
     hideCommandOutput = args.hide_command_output
     fileAttributes = args.file_attributes
-    quiet = args.quiet
 
     printCommandOnly = args.print_command_only
 
