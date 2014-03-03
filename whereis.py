@@ -72,7 +72,7 @@ import win32file
 #//******************************************************************************
 
 PROGRAM_NAME = "whereis"
-VERSION = "3.9.1"
+VERSION = "3.9.2"
 COPYRIGHT_MESSAGE = "copyright (c) 2013 (1997), Rick Gutleber (rickg@his.com)"
 
 currentDir = ""
@@ -86,6 +86,7 @@ defaultLineLength = 80
 
 fileCountLength = 0
 fileSizeLength = 0
+lineCount = 0
 lineCountLength = 0
 lineLength = 0
 
@@ -247,18 +248,18 @@ revision history:
     3.9.0: added /q, although the 3.8.10 fix eliminated the original reason
            for adding it
     3.9.1: don't update the status line unless it's actually changed
+    3.9.2: handle stderr a little differently if stdout is being redirected
+           since it doesn't need to be erased
 
     Known bugs:
-        - The status line is occasionally not erased when the search is complete.
+        - As of 3.9.2, stdout from an executed command (/c) doesn't show up
+        - As of 3.9.2 /es doesn't do the same thing as /e /s
 ''' )
 
 
 #//**********************************************************************
 #//
-#//  updateStatus
-#//
-#//  Sometimes whereis can be slow so we update the current directory
-#//  count to stderr every 0.5 seconds.
+#//  outputTotalStats
 #//
 #//**********************************************************************
 
@@ -285,6 +286,96 @@ def outputTotalStats( size = 0, lines = 0, separator = False ):
                 print( format( lines, lineCountFormat ), end=' ' )
         elif outputType == outputAttributes:
             print( ' ' * attributesLength, end = ' ' )
+
+
+#//******************************************************************************
+#//
+#//  outputDirTotalStats
+#//
+#//******************************************************************************
+
+def outputDirTotalStats( absoluteFileName, fileSize, lineCount ):
+    for outputType in outputOrder:
+        if outputType == outputAccessed:
+            out_date = datetime.fromtimestamp( round( os.stat( absoluteFileName ).st_atime, 0 ) )
+            print( out_date.isoformat( ' ' ), end=' ' )
+        elif outputType == outputCreated:
+            out_date = datetime.fromtimestamp( round( os.stat( absoluteFileName ).st_ctime, 0 ) )
+            print( out_date.isoformat( ' ' ), end=' ' )
+        elif outputType == outputModified:
+            out_date = datetime.fromtimestamp( round( os.stat( absoluteFileName ).st_mtime, 0 ) )
+            print( out_date.isoformat( ' ' ), end=' ' )
+        elif outputType == outputSize:
+            print( format( fileSize, fileSizeFormat ), end=' ' )
+        elif outputType == outputLineCount:
+             print( format( lineCount, lineCountFormat ), end=' ' )
+        elif outputType == outputAttributes:
+            print( ( 'a' if attributeFlags & win32con.FILE_ATTRIBUTE_ARCHIVE else '-' ) +
+                   ( 'c' if attributeFlags & win32con.FILE_ATTRIBUTE_COMPRESSED else '-' ) +
+                   ( 'h' if attributeFlags & win32con.FILE_ATTRIBUTE_HIDDEN else '-' ) +
+                   ( 'n' if attributeFlags & win32con.FILE_ATTRIBUTE_NORMAL else '-' ) +
+                   ( 'r' if attributeFlags & win32con.FILE_ATTRIBUTE_READONLY else '-' ) +
+                   ( 's' if attributeFlags & win32con.FILE_ATTRIBUTE_SYSTEM else '-' ) +
+                   ( 't' if attributeFlags & win32con.FILE_ATTRIBUTE_TEMPORARY else '-' ), end=' ' )
+
+
+#//******************************************************************************
+#//
+#//  translateCommand
+#//
+#//  Translate the '!' tokens in the command to be executed
+#//
+#//  !! - single exclamation point
+#//  !/ - OS-specific pathname separator
+#//  !0 - '/dev/null' (or OS equivalent)
+#//  !D - date (YYYYMMDD) when app was started
+#//  !O - '>>'
+#//  !P - absolute path
+#//  !T - time of day (24-hour - HHMMSS) when app was started
+#//  !b - base filename (no extension)
+#//  !c - current working directory
+#//  !d - date (YYMMDD) when app was started
+#//  !f - fully qualified filespec
+#//  !i - '<'
+#//  !n - OS-specific line separator
+#//  !o - '>'
+#//  !p - relative path
+#//  !q - double quote character (")
+#//  !r - relative filespec
+#//  !t - time of day (24-hour - HHMM) when app was started
+#//  !x - filename extension
+#//  !| - '|'
+#//
+#//******************************************************************************
+
+def translateCommand( command, base, extension, currentAbsoluteDir, absoluteFileName, currentRelativeDir, \
+                      relativeFileName ):
+    translatedCommand = command.replace( '!!', '!' )
+
+    translatedCommand = translatedCommand.replace( '!/', os.sep )
+
+    translatedCommand = translatedCommand.replace( '!0', os.devnull )
+    translatedCommand = translatedCommand.replace( '!D', datetime.now( ).strftime( "%Y%m%d" ) )
+    translatedCommand = translatedCommand.replace( '!O', '>>' )
+    translatedCommand = translatedCommand.replace( '!P', '"' + currentAbsoluteDir + '"' )
+    translatedCommand = translatedCommand.replace( '!T', datetime.now( ).strftime( "%H%M%S" ) )
+
+    translatedCommand = translatedCommand.replace( '!b', '"' + base + '"' )
+    translatedCommand = translatedCommand.replace( '!c', '"' + os.getcwd( ) + '"' )
+    translatedCommand = translatedCommand.replace( '!d', datetime.now( ).strftime( "%y%m%d" ) )
+    translatedCommand = translatedCommand.replace( '!f', '"' + absoluteFileName + '"' )
+    translatedCommand = translatedCommand.replace( '!i', '<' )
+    translatedCommand = translatedCommand.replace( '!n', os.linesep )
+    translatedCommand = translatedCommand.replace( '!o', '>' )
+    translatedCommand = translatedCommand.replace( '!p', '"' + currentRelativeDir + '"' )
+    translatedCommand = translatedCommand.replace( '!q', '"' )
+    translatedCommand = translatedCommand.replace( '!r', '"' + relativeFileName + '"' )
+    translatedCommand = translatedCommand.replace( '!t', datetime.now( ).strftime( "%H%M" ) )
+    translatedCommand = translatedCommand.replace( '!x', '"' + extension + '"' )
+
+    translatedCommand = translatedCommand.replace( '!|', '|' )
+
+    return translatedCommand
 
 
 #//**********************************************************************
@@ -323,27 +414,6 @@ def statusProcess( ):
 #//
 #//******************************************************************************
 
-#  !! - single exclamation point
-#  !f - fully qualified filespec
-#  !q - double quote character (")
-#  !r - relative filespec
-#  !t - time of day (24-hour - HHMM) when app was started
-#  !T - time of day (24-hour - HHMMSS) when app was started
-#  !d - date (YYMMDD) when app was started
-#  !D - date (YYYYMMDD) when app was started
-#  !c - current working directory
-#  !b - base filename (no extension)
-#  !x - filename extension
-#  !p - relative path
-#  !P - absolute path
-#  !/ - OS-specific pathname separator
-#  !n - OS-specific line separator
-#  !0 - '/dev/null' (or OS equivalent)
-#  !i - '<'
-#  !o - '>'
-#  !O - '>>'
-#  !| - '|'
-
 def main( ):
     global currentDir
     global currentDirCount
@@ -362,8 +432,10 @@ def main( ):
 
     global quiet
     global statusLineDirty
+    global redirected
 
     blankLine = ' ' * ( defaultLineLength - 1 )
+    redirected = False
 
     if os.name == 'nt':
         argumentPrefix = argumentPrefixWindows
@@ -517,6 +589,8 @@ def main( ):
     fileNameRepr = reprlib.Repr( )
     fileNameRepr = lineLength - 1    # sets max string length of repr
 
+    redirected = not sys.stdout.isatty( )
+
     # try to identify source dir and filespec intelligently...
 
     # I don't want order to matter if it's obvious what the user meant
@@ -613,46 +687,26 @@ def main( ):
                 attributeFlags = win32file.GetFileAttributes( absoluteFileName )
 
             if executeCommand != '':
-                translatedCommand = executeCommand
-
                 base, extension = os.path.splitext( fileName )
                 extension = extension.strip( )  # unix puts in a newline supposedly
 
-                translatedCommand = translatedCommand.replace( '!!', '!' )
-                translatedCommand = translatedCommand.replace( '!q', '"' )
-                translatedCommand = translatedCommand.replace( '!i', '<' )
-                translatedCommand = translatedCommand.replace( '!o', '>' )
-                translatedCommand = translatedCommand.replace( '!O', '>>' )
-                translatedCommand = translatedCommand.replace( '!|', '|' )
-
-                translatedCommand = translatedCommand.replace( '!/', os.sep )
-                translatedCommand = translatedCommand.replace( '!n', os.linesep )
-                translatedCommand = translatedCommand.replace( '!0', os.devnull )
-
-                translatedCommand = translatedCommand.replace( '!d', datetime.now( ).strftime( "%y%m%d" ) )
-                translatedCommand = translatedCommand.replace( '!D', datetime.now( ).strftime( "%Y%m%d" ) )
-                translatedCommand = translatedCommand.replace( '!t', datetime.now( ).strftime( "%H%M" ) )
-                translatedCommand = translatedCommand.replace( '!T', datetime.now( ).strftime( "%H%M%S" ) )
-
-                translatedCommand = translatedCommand.replace( '!c', '"' + os.getcwd( ) + '"' )
-                translatedCommand = translatedCommand.replace( '!r', '"' + relativeFileName + '"' )
-                translatedCommand = translatedCommand.replace( '!f', '"' + absoluteFileName + '"' )
-                translatedCommand = translatedCommand.replace( '!b', '"' + base + '"' )
-                translatedCommand = translatedCommand.replace( '!x', '"' + extension + '"' )
-                translatedCommand = translatedCommand.replace( '!p', '"' + currentRelativeDir + '"' )
-                translatedCommand = translatedCommand.replace( '!P', '"' + currentAbsoluteDir + '"' )
+                translatedCommand = translateCommand( executeCommand, base, extension, currentAbsoluteDir,
+                                                      absoluteFileName, currentRelativeDir, relativeFileName )
 
                 if not hideCommandOutput:
                     translatedCommand += ' > ' + os.devnull
 
                 if printCommandOnly:
-                    print( ' ' * ( lineLength - 1 ) + '\r' + translatedCommand )
+                    if not redirected:
+                        print( blankLine, end='\r', file=sys.stderr )
+
+                    print( translatedCommand )
                 else:
                     os.system( translatedCommand )
 
-            if countLines:
-                lineCount = 0
+            lineCount = 0
 
+            if countLines:
                 for line in codecs.open( absoluteFileName, 'rU', 'ascii', 'replace' ):
                     lineCount += 1
 
@@ -670,32 +724,11 @@ def main( ):
             if not outputDirTotalsOnly:
                 with outputLock:
                     # this will clear the console line for output, if necessary
-                    if not quiet and statusLineDirty:
+                    if not quiet and statusLineDirty and not redirected:
                         print( blankLine, end='\r', file=sys.stderr )
                         statusLineDirty = False
 
-                    for outputType in outputOrder:
-                        if outputType == outputAccessed:
-                            out_date = datetime.fromtimestamp( round( os.stat( absoluteFileName ).st_atime, 0 ) )
-                            print( out_date.isoformat( ' ' ), end=' ' )
-                        elif outputType == outputCreated:
-                            out_date = datetime.fromtimestamp( round( os.stat( absoluteFileName ).st_ctime, 0 ) )
-                            print( out_date.isoformat( ' ' ), end=' ' )
-                        elif outputType == outputModified:
-                            out_date = datetime.fromtimestamp( round( os.stat( absoluteFileName ).st_mtime, 0 ) )
-                            print( out_date.isoformat( ' ' ), end=' ' )
-                        elif outputType == outputSize:
-                            print( format( fileSize, fileSizeFormat ), end=' ' )
-                        elif outputType == outputLineCount:
-                             print( format( lineCount, lineCountFormat ), end=' ' )
-                        elif outputType == outputAttributes:
-                            print( ( 'a' if attributeFlags & win32con.FILE_ATTRIBUTE_ARCHIVE else '-' ) +
-                                   ( 'c' if attributeFlags & win32con.FILE_ATTRIBUTE_COMPRESSED else '-' ) +
-                                   ( 'h' if attributeFlags & win32con.FILE_ATTRIBUTE_HIDDEN else '-' ) +
-                                   ( 'n' if attributeFlags & win32con.FILE_ATTRIBUTE_NORMAL else '-' ) +
-                                   ( 'r' if attributeFlags & win32con.FILE_ATTRIBUTE_READONLY else '-' ) +
-                                   ( 's' if attributeFlags & win32con.FILE_ATTRIBUTE_SYSTEM else '-' ) +
-                                   ( 't' if attributeFlags & win32con.FILE_ATTRIBUTE_TEMPORARY else '-' ), end=' ' )
+                    outputDirTotalStats( absoluteFileName, fileSize, lineCount )
 
                     if outputRelativePath:
                         print( repr( relativeFileName ).replace( '\\\\', '\\' )[ 1 : -1 ] )
@@ -709,7 +742,7 @@ def main( ):
 
         if outputDirTotals or outputDirTotalsOnly:
             with outputLock:
-                if not quiet and statusLineDirty:
+                if not quiet and statusLineDirty and not redirected:
                     print( blankLine, end='\r', file=sys.stderr )
                     statusLineDirty = False
 
@@ -727,7 +760,7 @@ def main( ):
 
     if outputTotals:
         with outputLock:
-            if not quiet and statusLineDirty:
+            if not quiet and statusLineDirty and not redirected:
                 print( blankLine, end='\r', file=sys.stderr )
                 statusLineDirty = False
 
@@ -751,6 +784,7 @@ def main( ):
 
 if __name__ == '__main__':
     global blankLine
+    global redirected
 
     try:
         main( )
@@ -762,6 +796,6 @@ if __name__ == '__main__':
 
     stopEvent.set( )
 
-    if not quiet and statusLineDirty:
+    if not quiet and statusLineDirty and not redirected:
         print( blankLine, end='\r', file=sys.stderr )   # clear the status output
 
