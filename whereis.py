@@ -74,7 +74,7 @@ import win32file
 #//******************************************************************************
 
 PROGRAM_NAME = 'whereis'
-VERSION = '3.9.6'
+VERSION = '3.9.7'
 COPYRIGHT_MESSAGE = 'copyright (c) 2013 (1997), Rick Gutleber (rickg@his.com)'
 
 currentDir = ''
@@ -243,7 +243,7 @@ revision history:
     3.8.7: added TO_DEV_NULL
     3.8.8: now handles a permission exception when trying to get the filesize
            and just pretends the filesize is 0
-    3.8.9: Increased default file length of 16... 100s of GB.  It happens
+    3.8.9: increased default file length of 16... 100s of GB.  It happens
            frequently enough when summing directory sizes.
     3.8.10: status line cleanup is only done when needed
     3.9.0: added /q, although the 3.8.10 fix eliminated the original reason
@@ -254,9 +254,10 @@ revision history:
     3.9.3: stdout is redirected when it's being piped, so that change didn't
            work so well
     3.9.4: I had stopped using reprlib correctly... probably a long time ago.
-    3.9.5: Minor bug fix with attributeFlags
-    3.9.6: Wrote help text to replace what argparse generates, because it's
-           pretty ugly and hard to read
+    3.9.5: minor bug fix with attributeFlags
+    3.9.6: wrote help text to replace what argparse generates, because it's
+           hpretty ugly and hard to read
+    3.9.7: simple exception handling for Unicode filenames
 
     Known bugs:
         - As of 3.9.2, stdout from an executed command (/c) doesn't show up
@@ -570,6 +571,7 @@ def main( ):
     parser.add_argument( argumentPrefix + 'D', choices='acm', default='m', help='output timestamp, a = last accessed, c = created, m = last modified' )
     parser.add_argument( argumentPrefix + 'e', '--output_dir_totals', action='store_true' )
     parser.add_argument( argumentPrefix + 'E', '--output_dir_totals_only', action='store_true' )
+    parser.add_argument( argumentPrefix + 'f', '--folders-only', action='store_true' )
     parser.add_argument( argumentPrefix + 'h', '--print_help2', action='store_true' )
     parser.add_argument( argumentPrefix + 'i', '--include_filespec', action='append', nargs="+" )
     parser.add_argument( argumentPrefix + 'l', '--count_lines', action='store_true' )
@@ -690,6 +692,7 @@ def main( ):
     findOne = args.find_one
     hideCommandOutput = args.hide_command_output
     fileAttributes = args.file_attributes
+    foldersOnly = args.folders_only
 
     printCommandOnly = args.print_command_only
 
@@ -751,7 +754,8 @@ def main( ):
     for top, dirs, files in os.walk( sourceDir ):
         top = os.path.normpath( top )
 
-        # performance note:  we're still going to walk all the directories even if we are ignoring them
+        # performance note:  We're still going to walk all the directories even if we are ignoring them.
+        #                    I haven't figured out how to avoid that.
         if maxDepth > 0:
             depth = top.count( os.sep ) + 1
 
@@ -846,10 +850,13 @@ def main( ):
 
                     outputDirTotalStats( absoluteFileName, fileSize, lineCount, attributeFlags )
 
-                    if outputRelativePath:
-                        print( fileNameRepr.repr( relativeFileName ).replace( '\\\\', '\\' )[ 1 : -1 ] )
-                    else:
-                        print( fileNameRepr.repr( absoluteFileName ).replace( '\\\\', '\\' )[ 1 : -1 ] )
+                    try:
+                        if outputRelativePath:
+                            print( fileNameRepr.repr( relativeFileName ).replace( '\\\\', '\\' )[ 1 : -1 ] )
+                        else:
+                            print( fileNameRepr.repr( absoluteFileName ).replace( '\\\\', '\\' )[ 1 : -1 ] )
+                    except:
+                        print( "whereis: unicode filename found", file=sys.stderr )
 
             foundOne = True
 
