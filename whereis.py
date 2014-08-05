@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: latin-1 -*-
 
 import argparse
 import codecs
@@ -16,6 +17,7 @@ import time
 import re
 import win32con
 import win32file
+
 
 #import win32_helper
 
@@ -74,7 +76,7 @@ import win32file
 #//******************************************************************************
 
 PROGRAM_NAME = 'whereis'
-VERSION = '3.9.7'
+VERSION = '3.9.8'
 COPYRIGHT_MESSAGE = 'copyright (c) 2013 (1997), Rick Gutleber (rickg@his.com)'
 
 currentDir = ''
@@ -850,13 +852,16 @@ def main( ):
 
                     outputDirTotalStats( absoluteFileName, fileSize, lineCount, attributeFlags )
 
+                    if outputRelativePath:
+                        outputText = fileNameRepr.repr( relativeFileName ).replace( '\\\\', '\\' )[ 1 : -1 ]
+                    else:
+                        outputText = fileNameRepr.repr( absoluteFileName ).replace( '\\\\', '\\' )[ 1 : -1 ]
+
                     try:
-                        if outputRelativePath:
-                            print( fileNameRepr.repr( relativeFileName ).replace( '\\\\', '\\' )[ 1 : -1 ] )
-                        else:
-                            print( fileNameRepr.repr( absoluteFileName ).replace( '\\\\', '\\' )[ 1 : -1 ] )
+                        print( outputText )
                     except:
-                        print( "whereis: unicode filename found", file=sys.stderr )
+                        print( "whereis: unicode filename found ('" +
+                               str( outputText.encode( 'ascii', 'backslashreplace' ) ) + "')", file=sys.stderr )
 
             foundOne = True
 
