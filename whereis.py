@@ -19,56 +19,6 @@ import win32con
 import win32file
 
 
-#import win32_helper
-
-
-#import fnmatch
-#import os
-#import os.path
-#import re
-#
-#includes = ['*.doc', '*.odt'] # for files only
-#excludes = ['/home/paulo-freitas/Documents'] # for dirs and files
-#
-## transform glob patterns to regular expressions
-#includes = r'|'.join([fnmatch.translate(x) for x in includes])
-#excludes = r'|'.join([fnmatch.translate(x) for x in excludes]) or r'$.'
-#
-#for root, dirs, files in os.walk('/home/paulo-freitas'):
-#
-#    # exclude dirs
-#    dirs[:] = [os.path.join(root, d) for d in dirs]
-#    dirs[:] = [d for d in dirs if not re.match(excludes, d)]
-#
-#    # exclude/include files
-#    files = [os.path.join(root, f) for f in files]
-#    files = [f for f in files if not re.match(excludes, f)]
-#    files = [f for f in files if re.match(includes, f)]
-#
-#    for fname in files:
-#        print fname
-
-
-#import os
-#
-#def walklevel(some_dir, level=1):
-#    some_dir = some_dir.rstrip(os.path.sep)
-#    assert os.path.isdir(some_dir)
-#    num_sep = some_dir.count(os.path.sep)
-#    for root, dirs, files in os.walk(some_dir):
-#        yield root, dirs, files
-#        num_sep_this = root.count(os.path.sep)
-#        if num_sep + level <= num_sep_this:
-#           del dirs[:]
-
-
-#def _dir_list(self, dir_name, whitelist):
-#    outputList = []
-#    for root, dirs, files in os.walk(dir_name):
-#        dirs[:] = [d for d in dirs if is_good(d)]
-#        for f in files:
-#            do_stuff()
-
 #//******************************************************************************
 #//
 #//  globals/constants
@@ -76,7 +26,7 @@ import win32file
 #//******************************************************************************
 
 PROGRAM_NAME = 'whereis'
-VERSION = '3.9.8'
+VERSION = '3.9.9'
 COPYRIGHT_MESSAGE = 'copyright (c) 2013 (1997), Rick Gutleber (rickg@his.com)'
 
 currentDir = ''
@@ -260,11 +210,13 @@ revision history:
     3.9.6: wrote help text to replace what argparse generates, because it's
            hpretty ugly and hard to read
     3.9.7: simple exception handling for Unicode filenames
+    3.9.8: whereis detects Unicode filenames rather than throwing an exception
+    3.9.9: added /g to turn off filename truncation
 
     Known bugs:
         - As of 3.9.2, stdout from an executed command (/c) doesn't show up
         - As of 3.9.2, /es doesn't do the same thing as /e /s
-        - As of 3.9.6, /e doesn't seem to work at all, altohugh /E does
+        - As of 3.9.6, /e doesn't seem to work at all, although /E does
         - The original intent was to never have output wrap (according to /Ll
           or the default of 80), but this never took into account extra
           columns being output.
@@ -473,6 +425,9 @@ command-line options:
     /E, --output_dir_totals_only
         output totals for each directory and not for each file
 
+    /g, --no_filename_truncation
+        whereis does not attempt to display the filenames on a single line
+
     /i filespec [filespec ...], --include_filespec fielspec [filespec ...]
         include additional filespecs for searching
 
@@ -574,6 +529,7 @@ def main( ):
     parser.add_argument( argumentPrefix + 'e', '--output_dir_totals', action='store_true' )
     parser.add_argument( argumentPrefix + 'E', '--output_dir_totals_only', action='store_true' )
     parser.add_argument( argumentPrefix + 'f', '--folders-only', action='store_true' )
+    parser.add_argument( argumentPrefix + 'g', '--no_filename_truncation', action='store_true' )
     parser.add_argument( argumentPrefix + 'h', '--print_help2', action='store_true' )
     parser.add_argument( argumentPrefix + 'i', '--include_filespec', action='append', nargs="+" )
     parser.add_argument( argumentPrefix + 'l', '--count_lines', action='store_true' )
@@ -695,6 +651,7 @@ def main( ):
     hideCommandOutput = args.hide_command_output
     fileAttributes = args.file_attributes
     foldersOnly = args.folders_only
+    noFileNameTruncation = args.no_filename_truncation
 
     printCommandOnly = args.print_command_only
 
@@ -853,9 +810,15 @@ def main( ):
                     outputDirTotalStats( absoluteFileName, fileSize, lineCount, attributeFlags )
 
                     if outputRelativePath:
-                        outputText = fileNameRepr.repr( relativeFileName ).replace( '\\\\', '\\' )[ 1 : -1 ]
+                        if noFileNameTruncation:
+                            outputText = relativeFileName.replace( '\\\\', '\\' )
+                        else:
+                            outputText = fileNameRepr.repr( relativeFileName ).replace( '\\\\', '\\' )[ 1 : -1 ]
                     else:
-                        outputText = fileNameRepr.repr( absoluteFileName ).replace( '\\\\', '\\' )[ 1 : -1 ]
+                        if noFileNameTruncation:
+                            outputText = absoluteFileName.replace( '\\\\', '\\' )
+                        else:
+                            outputText = fileNameRepr.repr( absoluteFileName ).replace( '\\\\', '\\' )[ 1 : -1 ]
 
                     try:
                         print( outputText )
