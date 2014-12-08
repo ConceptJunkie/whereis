@@ -11,6 +11,7 @@ from os.path import join, getsize
 import platform
 import reprlib                      # prevents barfing on weird characters in filenames
 import subprocess
+import shlex
 import sys
 import threading
 import time
@@ -26,8 +27,8 @@ import win32file
 #//******************************************************************************
 
 PROGRAM_NAME = 'whereis'
-VERSION = '3.9.9'
-COPYRIGHT_MESSAGE = 'copyright (c) 2013 (1997), Rick Gutleber (rickg@his.com)'
+VERSION = '3.9.10'
+COPYRIGHT_MESSAGE = 'copyright (c) 2014 (1997), Rick Gutleber (rickg@his.com)'
 
 currentDir = ''
 currentDirCount = 0
@@ -212,6 +213,8 @@ revision history:
     3.9.7: simple exception handling for Unicode filenames
     3.9.8: whereis detects Unicode filenames rather than throwing an exception
     3.9.9: added /g to turn off filename truncation
+    3.9.10:  changed from os.system( ) to subprocess.Popen( ) which doesn't
+             block
 
     Known bugs:
         - As of 3.9.2, stdout from an executed command (/c) doesn't show up
@@ -294,21 +297,21 @@ def outputDirTotalStats( absoluteFileName, fileSize, lineCount, attributeFlags )
 #//  !! - single exclamation point
 #//  !/ - OS-specific pathname separator
 #//  !0 - '/dev/null' (or OS equivalent)
-#//  !D - date (YYYYMMDD) when app was started
-#//  !O - '>>'
-#//  !P - absolute path
-#//  !T - time of day (24-hour - HHMMSS) when app was started
 #//  !b - base filename (no extension)
 #//  !c - current working directory
 #//  !d - date (YYMMDD) when app was started
+#//  !D - date (YYYYMMDD) when app was started
 #//  !f - fully qualified filespec
 #//  !i - '<'
 #//  !n - OS-specific line separator
 #//  !o - '>'
+#//  !O - '>>'
+#//  !P - absolute path
 #//  !p - relative path
 #//  !q - double quote character (")
 #//  !r - relative filespec
 #//  !t - time of day (24-hour - HHMM) when app was started
+#//  !T - time of day (24-hour - HHMMSS) when app was started
 #//  !x - filename extension
 #//  !| - '|', pipe character
 #//
@@ -781,7 +784,7 @@ def main( ):
                     print( blankLine, end='\r', file=sys.stderr )
                     print( translatedCommand )
                 else:
-                    os.system( translatedCommand )
+                    subprocess.Popen( shlex.split( translatedCommand ), shell=True )
 
             lineCount = 0
 
