@@ -26,85 +26,88 @@ Rick
 
   command-line options:
 
-      /?, /h, --print_help
-          output this help message and exit
+    /?, /h, --print_help
+        output this help message and exit
 
-      /1, --find_one
-          quit after finding one file
+    /1, --find_one
+        quit after finding one file
 
-      /a, --file_attributes
-          print file attributes
+    /a, --file_attributes
+        print file attributes
 
-      /b dir, --backup dir
-          backup found files to a location relative to dir
+    /b dir, --backup dir
+        backup found files to a location relative to dir
 
-      /c command, --execute_command command
-          execute a command for each file (see -hh for details)
+    /c command, --execute_command command
+        execute a command for each file (see -hh for details)
 
-      /D {a,c,m} --output_timestamp {a,c,m}
-          output file timestamp, a = last accessed, c = created, m = last
-          modified
+    /D {a,c,m} --output_timestamp {a,c,m}
+        output file timestamp, a = last accessed, c = created, m = last
+        modified
 
-      /d, --output_timestamp
-          output file timestamp (equivalent to /Dm)
+    /d, --output_timestamp
+        output file timestamp (equivalent to /Dm)
 
-      /e, --output_dir_totals
-          output totals for each directory
+    /e, --output_dir_totals
+        output totals for each directory
 
-      /E, --output_dir_totals_only
-          output totals for each directory and not for each file
+    /E, --output_dir_totals_only
+        output totals for each directory and not for each file
 
-      /i filespec [filespec ...], --include_filespec fielspec [filespec ...]
-          include additional filespecs for searching
+    /g, --filename_truncation
+        whereis attempts to display the filenames on a single line
 
-      /l, --count_lines
-          output the line count of each file
+    /i filespec [filespec ...], --include_filespec fielspec [filespec ...]
+        include additional filespecs for searching
 
-      /Lf n, --file_count_length n
-          set the amount of size of the file count column
+    /l, --count_lines
+        output the line count of each file
 
-      /Ll n, --line_length n
-          set the default line length for displaying text (default is 80)
+    /Lf n, --file_count_length n
+        set the amount of size of the file count column
 
-      /Ln n, --line_count_length n
-          set the default size of the line count column
+    /Ll n, --line_length n
+        set the default line length for displaying text (default is 80)
 
-      /Lz n, --file_size_length n
-          set the default size of the file size column
+    /Ln n, --line_count_length n
+        set the default size of the line count column
 
-      /m, --no_commas
-          display numerical values with no commas
+    /Lz n, --file_size_length n
+        set the default size of the file size column
 
-      /n [n], --max_depth [n]
-          maximum directory depth to recurse when searching, defaults to infinite
-          if /n is not specified or 1 directory if /n is specified with no value
+    /m, --no_commas
+        display numerical values with no commas
 
-      /q, --quiet
-          suppress unnecessary output
+    /n [n], --max_depth [n]
+        maximum directory depth to recurse when searching, defaults to infinite
+        if /n is not specified or 1 directory if /n is specified with no value
 
-      /r, --output_relative_path
-          output a relative path to the current directory for files rather than
-          an absolute file path
+    /q, --quiet
+        suppress unnecessary output
 
-      /s, --output_file_size
-          output the file sizes in bytes
+    /r, --output_relative_path
+        output a relative path to the current directory for files rather than
+        an absolute file path
 
-      /t, --output_totals
-          output totals for all numerical vallues
+    /s, --output_file_size
+        output the file sizes in bytes
 
-      /u, --hide_command_output
-          suppress output from commands (i.e. when using /c)
+    /t, --output_totals
+        output totals for all numerical vallues
 
-      /v, --version
-          output the version number and exit
+    /u, --hide_command_output
+        suppress output from commands (i.e. when using /c)
 
-      /vv, --version_history
-          output the version history
+    /v, --version
+        output the version number and exit
 
-      /x filespec [filespec ...], --exclude_filespec filespec [filespec ...]
-          exclude filespecs from searching
+    /vv, --version_history
+        output the version history
 
-      /z, --print_command_only
-          the same as /c, except the command is not executed, but output to the
-          console
+    /x filespec [filespec ...], --exclude_filespec filespec [filespec ...]
+        exclude filespecs from searching
+
+    /z, --print_command_only
+        the same as /c, except the command is not executed, but output to the
+        console
 
