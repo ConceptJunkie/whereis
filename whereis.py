@@ -3,21 +3,23 @@
 
 import argparse
 import codecs
-from datetime import datetime
 import fnmatch
+import itertools
 import locale
 import os
-from os.path import join, getsize
 import platform
+import re
 import reprlib                      # prevents barfing on weird characters in filenames
-import subprocess
 import shlex
+import subprocess
 import sys
 import threading
 import time
-import re
 import win32con
 import win32file
+
+from datetime import datetime
+from os.path import join, getsize
 
 
 #//******************************************************************************
@@ -27,7 +29,7 @@ import win32file
 #//******************************************************************************
 
 PROGRAM_NAME = 'whereis'
-VERSION = '3.9.10'
+VERSION = '3.9.11'
 COPYRIGHT_MESSAGE = 'copyright (c) 2014 (1997), Rick Gutleber (rickg@his.com)'
 
 currentDir = ''
@@ -215,6 +217,8 @@ revision history:
     3.9.9: added /g to turn off filename truncation
     3.9.10:  changed from os.system( ) to subprocess.Popen( ) which doesn't
              block
+    3.9.11:  where didn't properly allow multiple instances of /i and /x,
+             file name truncation is off by default, /g now turns it on
 
     Known bugs:
         - As of 3.9.2, stdout from an executed command (/c) doesn't show up
@@ -428,8 +432,8 @@ command-line options:
     /E, --output_dir_totals_only
         output totals for each directory and not for each file
 
-    /g, --no_filename_truncation
-        whereis does not attempt to display the filenames on a single line
+    /g, --filename_truncation
+        whereis attempts to display the filenames on a single line
 
     /i filespec [filespec ...], --include_filespec fielspec [filespec ...]
         include additional filespecs for searching
@@ -532,7 +536,7 @@ def main( ):
     parser.add_argument( argumentPrefix + 'e', '--output_dir_totals', action='store_true' )
     parser.add_argument( argumentPrefix + 'E', '--output_dir_totals_only', action='store_true' )
     parser.add_argument( argumentPrefix + 'f', '--folders-only', action='store_true' )
-    parser.add_argument( argumentPrefix + 'g', '--no_filename_truncation', action='store_true' )
+    parser.add_argument( argumentPrefix + 'g', '--filename_truncation', action='store_true' )
     parser.add_argument( argumentPrefix + 'h', '--print_help2', action='store_true' )
     parser.add_argument( argumentPrefix + 'i', '--include_filespec', action='append', nargs="+" )
     parser.add_argument( argumentPrefix + 'l', '--count_lines', action='store_true' )
@@ -625,12 +629,12 @@ def main( ):
     if args.include_filespec == None:
         includeFileSpecs = list( )
     else:
-        includeFileSpecs = args.include_filespec[ 0 ]
+        includeFileSpecs = list( itertools.chain( *args.include_filespec ) )
 
     if args.exclude_filespec == None:
         excludeFileSpecs = list( )
     else:
-        excludeFileSpecs = args.exclude_filespec[ 0 ]
+        excludeFileSpecs = list( itertools.chain( *args.exclude_filespec ) )
 
     fileCountLength = args.file_count_length
     fileSizeLength = args.file_size_length
@@ -654,7 +658,7 @@ def main( ):
     hideCommandOutput = args.hide_command_output
     fileAttributes = args.file_attributes
     foldersOnly = args.folders_only
-    noFileNameTruncation = args.no_filename_truncation
+    fileNameTruncation = args.filename_truncation
 
     printCommandOnly = args.print_command_only
 
@@ -813,15 +817,15 @@ def main( ):
                     outputDirTotalStats( absoluteFileName, fileSize, lineCount, attributeFlags )
 
                     if outputRelativePath:
-                        if noFileNameTruncation:
-                            outputText = relativeFileName.replace( '\\\\', '\\' )
-                        else:
+                        if fileNameTruncation:
                             outputText = fileNameRepr.repr( relativeFileName ).replace( '\\\\', '\\' )[ 1 : -1 ]
-                    else:
-                        if noFileNameTruncation:
-                            outputText = absoluteFileName.replace( '\\\\', '\\' )
                         else:
+                            outputText = relativeFileName.replace( '\\\\', '\\' )
+                    else:
+                        if fileNameTruncation:
                             outputText = fileNameRepr.repr( absoluteFileName ).replace( '\\\\', '\\' )[ 1 : -1 ]
+                        else:
+                            outputText = absoluteFileName.replace( '\\\\', '\\' )
 
                     try:
                         print( outputText )
