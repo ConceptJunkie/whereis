@@ -782,10 +782,6 @@ def main( ):
 
                 translatedCommand = getTranslateCommand( executeCommand, base, extension, currentAbsoluteDir,
                                                          absoluteFileName, currentRelativeDir, relativeFileName )
-                print( 'translated command:' )
-                print( translatedCommand )
-                print( )
-
                 if not hideCommandOutput:
                     translatedCommand += ' > ' + os.devnull
 
