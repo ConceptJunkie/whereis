@@ -29,7 +29,7 @@ from os.path import join, getsize
 #//******************************************************************************
 
 PROGRAM_NAME = 'whereis'
-VERSION = '3.9.11'
+VERSION = '3.9.12'
 COPYRIGHT_MESSAGE = 'copyright (c) 2014 (1997), Rick Gutleber (rickg@his.com)'
 
 currentDir = ''
@@ -219,6 +219,7 @@ revision history:
              block
     3.9.11:  where didn't properly allow multiple instances of /i and /x,
              file name truncation is off by default, /g now turns it on
+    3.9.12:  minor bug with escaping a single-quote when processing /c
 
     Known bugs:
         - As of 3.9.2, stdout from an executed command (/c) doesn't show up
@@ -294,7 +295,7 @@ def outputDirTotalStats( absoluteFileName, fileSize, lineCount, attributeFlags )
 
 #//******************************************************************************
 #//
-#//  translateCommand
+#//  getTranslateCommand
 #//
 #//  Translate the '!' tokens in the command to be executed
 #//
@@ -321,8 +322,9 @@ def outputDirTotalStats( absoluteFileName, fileSize, lineCount, attributeFlags )
 #//
 #//******************************************************************************
 
-def translateCommand( command, base, extension, currentAbsoluteDir, absoluteFileName, currentRelativeDir, \
-                      relativeFileName ):
+def getTranslateCommand( command, base, extension, currentAbsoluteDir, absoluteFileName, currentRelativeDir, \
+                         relativeFileName ):
+    translatedCommand = command.replace( '\'', '\\\'' )
     translatedCommand = command.replace( '!!', '!' )
 
     translatedCommand = translatedCommand.replace( '!/', os.sep )
@@ -486,7 +488,7 @@ command-line options:
         exclude filespecs from searching
 
     /z, --print_command_only
-        the same as /c, except the command is not executed, but output to the
+        used with /c:  the command is not executed, just echoed to the
         console''' )
 
 
@@ -778,8 +780,11 @@ def main( ):
                 base, extension = os.path.splitext( fileName )
                 extension = extension.strip( )  # unix puts in a newline supposedly
 
-                translatedCommand = translateCommand( executeCommand, base, extension, currentAbsoluteDir,
-                                                      absoluteFileName, currentRelativeDir, relativeFileName )
+                translatedCommand = getTranslateCommand( executeCommand, base, extension, currentAbsoluteDir,
+                                                         absoluteFileName, currentRelativeDir, relativeFileName )
+                print( 'translated command:' )
+                print( translatedCommand )
+                print( )
 
                 if not hideCommandOutput:
                     translatedCommand += ' > ' + os.devnull
