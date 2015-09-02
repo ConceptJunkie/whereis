@@ -30,7 +30,7 @@ from os.path import join, getsize
 
 PROGRAM_NAME = 'whereis'
 VERSION = '3.9.12'
-COPYRIGHT_MESSAGE = 'copyright (c) 2014 (1997), Rick Gutleber (rickg@his.com)'
+COPYRIGHT_MESSAGE = 'copyright (c) 2015 (1997), Rick Gutleber (rickg@his.com)'
 
 currentDir = ''
 currentDirCount = 0
@@ -550,7 +550,7 @@ def main( ):
     parser.add_argument( argumentPrefix + 'n', '--max_depth', type=int, const=1, default=0, nargs='?' )
     parser.add_argument( argumentPrefix + 'q', '--quiet', action='store_true' )
     parser.add_argument( argumentPrefix + 'r', '--output_relative_path', action='store_true' )
-#    parser.add_argument( argumentPrefix + 'R', '--rename', choices='dmnsu' )
+    #parser.add_argument( argumentPrefix + 'R', '--rename', choices='dmnsu' )
     parser.add_argument( argumentPrefix + 's', '--output_file_size', action='store_true' )
     parser.add_argument( argumentPrefix + 't', '--output_totals', action='store_true' )
     parser.add_argument( argumentPrefix + 'u', '--hide_command_output', action='store_true' )
