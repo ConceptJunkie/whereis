@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: latin-1 -*-
 
+from __future__ import print_function
+
+import six
+
 import argparse
 import codecs
 import fnmatch
@@ -9,17 +13,26 @@ import locale
 import os
 import platform
 import re
-import reprlib                      # prevents barfing on weird characters in filenames
+
+if six.PY2:
+    import repr as reprlib
+else:
+    import reprlib              # prevents barfing on weird characters in filenames
+
 import shlex
 import subprocess
 import sys
 import threading
 import time
-import win32con
-import win32file
+
+if os.name == 'nt':
+    import win32con
+    import win32file
 
 from datetime import datetime
 from os.path import join, getsize
+
+python26 = sys.version_info[ : 2 ] == ( 2, 6 )
 
 
 #//******************************************************************************
@@ -29,7 +42,7 @@ from os.path import join, getsize
 #//******************************************************************************
 
 PROGRAM_NAME = 'whereis'
-VERSION = '3.9.12'
+VERSION = '3.9.13'
 COPYRIGHT_MESSAGE = 'copyright (c) 2014 (1997), Rick Gutleber (rickg@his.com)'
 
 currentDir = ''
@@ -219,6 +232,8 @@ revision history:
              block
     3.9.11:  whereis didn't properly allow multiple instances of /i and /x,
              file name truncation is off by default, /g now turns it on
+    3.9.12:  minor bug with escaping a single-quote when processing /c
+    3.9.13:  Linux compatibility, Python 2 compatibility
 
     Known bugs:
         - As of 3.9.2, stdout from an executed command (/c) doesn't show up
@@ -282,7 +297,7 @@ def outputDirTotalStats( absoluteFileName, fileSize, lineCount, attributeFlags )
             print( format( fileSize, fileSizeFormat ), end=' ' )
         elif outputType == outputLineCount:
              print( format( lineCount, lineCountFormat ), end=' ' )
-        elif outputType == outputAttributes:
+        elif os.name == 'nt' and outputType == outputAttributes:
             print( ( 'a' if attributeFlags & win32con.FILE_ATTRIBUTE_ARCHIVE else '-' ) +
                    ( 'c' if attributeFlags & win32con.FILE_ATTRIBUTE_COMPRESSED else '-' ) +
                    ( 'h' if attributeFlags & win32con.FILE_ATTRIBUTE_HIDDEN else '-' ) +
@@ -412,7 +427,7 @@ command-line options:
         quit after finding one file
 
     /a, --file_attributes
-        print file attributes
+        print file attributes (Windows only, ignored on Linux)
 
     /b dir, --backup dir
         backup found files to a location relative to dir
@@ -455,7 +470,7 @@ command-line options:
         set the default size of the file size column
 
     /m, --no_commas
-        display numerical values with no commas
+        display numerical values with no commas (Python 2.6 does not support commas)
 
     /n [n], --max_depth [n]
         maximum directory depth to recurse when searching, defaults to infinite
@@ -665,7 +680,7 @@ def main( ):
 
     maxDepth = args.max_depth
 
-    if args.no_commas:
+    if args.no_commas or python26:
         formatString = 'd'
     else:
         formatString = ',d'
@@ -772,7 +787,7 @@ def main( ):
             dirTotal = dirTotal + fileSize
             fileCount += 1
 
-            if fileAttributes:
+            if os.name == 'nt' and fileAttributes:
                 attributeFlags = win32file.GetFileAttributes( absoluteFileName )
 
             if executeCommand != '':
