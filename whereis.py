@@ -30,7 +30,7 @@ from os.path import join, getsize
 
 PROGRAM_NAME = 'whereis'
 VERSION = '3.9.12'
-COPYRIGHT_MESSAGE = 'copyright (c) 2015 (1997), Rick Gutleber (rickg@his.com)'
+COPYRIGHT_MESSAGE = 'copyright (c) 2014 (1997), Rick Gutleber (rickg@his.com)'
 
 currentDir = ''
 currentDirCount = 0
@@ -191,7 +191,7 @@ revision history:
            or alias
     3.8.2: small changes to status line, fixed /r
     3.8.3: fixed use of undefined variable
-    3.8.4: changed back to os.system( ) because subprocess doesn't work
+    3.8.4: changed back to os.system( ) because I can't get subprocess to work
     3.8.5: blankLine wasn't updated if /Ll was set
     3.8.6: directory depth wasn't always calculated correctly, causing /n1 to
            fail
@@ -211,15 +211,14 @@ revision history:
     3.9.4: I had stopped using reprlib correctly... probably a long time ago.
     3.9.5: minor bug fix with attributeFlags
     3.9.6: wrote help text to replace what argparse generates, because it's
-           hpretty ugly and hard to read
+           pretty ugly and hard to read
     3.9.7: simple exception handling for Unicode filenames
     3.9.8: whereis detects Unicode filenames rather than throwing an exception
     3.9.9: added /g to turn off filename truncation
     3.9.10:  changed from os.system( ) to subprocess.Popen( ) which doesn't
              block
-    3.9.11:  where didn't properly allow multiple instances of /i and /x,
+    3.9.11:  whereis didn't properly allow multiple instances of /i and /x,
              file name truncation is off by default, /g now turns it on
-    3.9.12:  minor bug with escaping a single-quote when processing /c
 
     Known bugs:
         - As of 3.9.2, stdout from an executed command (/c) doesn't show up
@@ -295,7 +294,7 @@ def outputDirTotalStats( absoluteFileName, fileSize, lineCount, attributeFlags )
 
 #//******************************************************************************
 #//
-#//  getTranslateCommand
+#//  translateCommand
 #//
 #//  Translate the '!' tokens in the command to be executed
 #//
@@ -322,9 +321,8 @@ def outputDirTotalStats( absoluteFileName, fileSize, lineCount, attributeFlags )
 #//
 #//******************************************************************************
 
-def getTranslateCommand( command, base, extension, currentAbsoluteDir, absoluteFileName, currentRelativeDir, \
-                         relativeFileName ):
-    translatedCommand = command.replace( '\'', '\\\'' )
+def translateCommand( command, base, extension, currentAbsoluteDir, absoluteFileName, currentRelativeDir, \
+                      relativeFileName ):
     translatedCommand = command.replace( '!!', '!' )
 
     translatedCommand = translatedCommand.replace( '!/', os.sep )
@@ -391,6 +389,7 @@ def statusProcess( ):
 
 def printHelp( ):
     print(
+PROGRAM_NAME + ' ' + VERSION +
 '''
 usage:  whereis [options] [filespec] [target]
 
@@ -437,7 +436,7 @@ command-line options:
     /g, --filename_truncation
         whereis attempts to display the filenames on a single line
 
-    /i filespec [filespec ...], --include_filespec fielspec [filespec ...]
+    /i filespec [filespec ...], --include_filespec filespec [filespec ...]
         include additional filespecs for searching
 
     /l, --count_lines
@@ -488,7 +487,7 @@ command-line options:
         exclude filespecs from searching
 
     /z, --print_command_only
-        used with /c:  the command is not executed, just echoed to the
+        the same as /c, except the command is not executed, but output to the
         console''' )
 
 
@@ -550,7 +549,7 @@ def main( ):
     parser.add_argument( argumentPrefix + 'n', '--max_depth', type=int, const=1, default=0, nargs='?' )
     parser.add_argument( argumentPrefix + 'q', '--quiet', action='store_true' )
     parser.add_argument( argumentPrefix + 'r', '--output_relative_path', action='store_true' )
-    #parser.add_argument( argumentPrefix + 'R', '--rename', choices='dmnsu' )
+#    parser.add_argument( argumentPrefix + 'R', '--rename', choices='dmnsu' )
     parser.add_argument( argumentPrefix + 's', '--output_file_size', action='store_true' )
     parser.add_argument( argumentPrefix + 't', '--output_totals', action='store_true' )
     parser.add_argument( argumentPrefix + 'u', '--hide_command_output', action='store_true' )
@@ -780,8 +779,9 @@ def main( ):
                 base, extension = os.path.splitext( fileName )
                 extension = extension.strip( )  # unix puts in a newline supposedly
 
-                translatedCommand = getTranslateCommand( executeCommand, base, extension, currentAbsoluteDir,
-                                                         absoluteFileName, currentRelativeDir, relativeFileName )
+                translatedCommand = translateCommand( executeCommand, base, extension, currentAbsoluteDir,
+                                                      absoluteFileName, currentRelativeDir, relativeFileName )
+
                 if not hideCommandOutput:
                     translatedCommand += ' > ' + os.devnull
 
