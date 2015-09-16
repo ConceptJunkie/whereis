@@ -241,11 +241,11 @@ revision history:
     3.9.11:  whereis didn't properly allow multiple instances of /i and /x,
              file name truncation is off by default, /g now turns it on
     3.9.12:  minor bug with escaping a single-quote when processing /c
-    3.9.13:  Linux compatibility, Python 2 compatibility, finally implemented
-             /b (oops), fixed /c command output to console, fixed /e
+    3.10.0:  Linux compatibility, Python 2 compatibility, finally implemented
+             /b (oops), fixed /c command output to console, fixed /e, /a
+             outputs file permissions on Linux
 
     Known bugs:
-        - As of 3.9.6, /e doesn't seem to work at all, although /E does
         - The original intent was to never have output wrap with /g (according
           to /Ll or the default of 80), but this never took into account extra
           columns being output.
@@ -288,33 +288,65 @@ def outputTotalStats( size = 0, lines = 0, separator = False ):
 
 #//******************************************************************************
 #//
+#//  makeUnixPermissionsString
+#//
+#//  We build the permissions string backwards by looking at the last 9 bits
+#//  of the mode value.
+#//
+#//******************************************************************************
+
+def makeUnixPermissionsString( _mode ):
+    modeString = 'xwr'  # backwards
+    mode = _mode
+
+    result = ''
+
+    for i in range( 3 ):
+        for j in range( 3 ):
+            if mode & 0x01:
+                result = modeString[ j ] + result
+            else:
+                result = '-' + result
+
+            mode >>= 1
+
+    return result
+
+
+#//******************************************************************************
+#//
 #//  outputFileStats
 #//
 #//******************************************************************************
 
 def outputFileStats( absoluteFileName, fileSize, lineCount, attributeFlags ):
+    stat_result = os.stat( absoluteFileName )
+
     for outputType in outputOrder:
         if outputType == outputAccessed:
-            out_date = datetime.fromtimestamp( round( os.stat( absoluteFileName ).st_atime, 0 ) )
+            out_date = datetime.fromtimestamp( round( stat_result.st_atime, 0 ) )
             print( out_date.isoformat( ' ' ), end=' ' )
         elif outputType == outputCreated:
-            out_date = datetime.fromtimestamp( round( os.stat( absoluteFileName ).st_ctime, 0 ) )
+            out_date = datetime.fromtimestamp( round( stat_result.st_ctime, 0 ) )
             print( out_date.isoformat( ' ' ), end=' ' )
         elif outputType == outputModified:
-            out_date = datetime.fromtimestamp( round( os.stat( absoluteFileName ).st_mtime, 0 ) )
+            out_date = datetime.fromtimestamp( round( stat_result.st_mtime, 0 ) )
             print( out_date.isoformat( ' ' ), end=' ' )
         elif outputType == outputSize:
             print( format( fileSize, fileSizeFormat ), end=' ' )
         elif outputType == outputLineCount:
              print( format( lineCount, lineCountFormat ), end=' ' )
-        elif os.name == 'nt' and outputType == outputAttributes:
-            print( ( 'a' if attributeFlags & win32con.FILE_ATTRIBUTE_ARCHIVE else '-' ) +
-                   ( 'c' if attributeFlags & win32con.FILE_ATTRIBUTE_COMPRESSED else '-' ) +
-                   ( 'h' if attributeFlags & win32con.FILE_ATTRIBUTE_HIDDEN else '-' ) +
-                   ( 'n' if attributeFlags & win32con.FILE_ATTRIBUTE_NORMAL else '-' ) +
-                   ( 'r' if attributeFlags & win32con.FILE_ATTRIBUTE_READONLY else '-' ) +
-                   ( 's' if attributeFlags & win32con.FILE_ATTRIBUTE_SYSTEM else '-' ) +
-                   ( 't' if attributeFlags & win32con.FILE_ATTRIBUTE_TEMPORARY else '-' ), end=' ' )
+        elif outputType == outputAttributes:
+            if os.name == 'nt':
+                print( ( 'a' if attributeFlags & win32con.FILE_ATTRIBUTE_ARCHIVE else '-' ) +
+                       ( 'c' if attributeFlags & win32con.FILE_ATTRIBUTE_COMPRESSED else '-' ) +
+                       ( 'h' if attributeFlags & win32con.FILE_ATTRIBUTE_HIDDEN else '-' ) +
+                       ( 'n' if attributeFlags & win32con.FILE_ATTRIBUTE_NORMAL else '-' ) +
+                       ( 'r' if attributeFlags & win32con.FILE_ATTRIBUTE_READONLY else '-' ) +
+                       ( 's' if attributeFlags & win32con.FILE_ATTRIBUTE_SYSTEM else '-' ) +
+                       ( 't' if attributeFlags & win32con.FILE_ATTRIBUTE_TEMPORARY else '-' ), end=' ' )
+            else:
+                print( makeUnixPermissionsString( stat_result.st_mode ), end=' ' )
 
 
 #//******************************************************************************
@@ -436,7 +468,7 @@ command-line options:
         quit after finding one file
 
     /a, --file_attributes
-        print file attributes (Windows only, ignored on Linux)
+        print file attributes (file permissions on Linux)
 
     /b dir, --backup dir
         backup found files to a location relative to dir
