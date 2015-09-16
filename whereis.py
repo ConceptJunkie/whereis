@@ -71,14 +71,7 @@ attributesLength = 7
 lineLength = 0
 
 outputLock = threading.Lock( )
-
 stopEvent = threading.Event( )
-
-argumentPrefixLinux = '-'
-argumentPrefixWindows = '/'
-
-prefixListLinux = argumentPrefixLinux
-prefixListWindows = argumentPrefixLinux + argumentPrefixWindows
 
 outputAccessed = 0
 outputCreated = 1
@@ -86,11 +79,6 @@ outputModified = 2
 outputSize = 3
 outputLineCount = 4
 outputAttributes = 5
-
-STD_DEV_NULL = ' > NUL'
-ERR_DEV_NULL = ' 2> NUL'
-
-TO_DEV_NULL = STD_DEV_NULL + ERR_DEV_NULL
 
 outputOrder = list( )
 
@@ -101,6 +89,9 @@ oldOutput = ''
 
 copyCommandWindows = "copy"
 copyCommandLinux = "cp"
+
+argumentPrefixLinux = '-'
+argumentPrefixWindows = '/'
 
 prefixListLinux = argumentPrefixLinux
 prefixListWindows = argumentPrefixLinux + argumentPrefixWindows
@@ -250,14 +241,13 @@ revision history:
     3.9.11:  whereis didn't properly allow multiple instances of /i and /x,
              file name truncation is off by default, /g now turns it on
     3.9.12:  minor bug with escaping a single-quote when processing /c
-    3.9.13:  Linux compatibility, Python 2 compatibility
+    3.9.13:  Linux compatibility, Python 2 compatibility, finally implemented
+             /b (oops), fixed /c command output to console, fixed /e
 
     Known bugs:
-        - As of 3.9.2, stdout from an executed command (/c) doesn't show up
-        - As of 3.9.2, /es doesn't do the same thing as /e /s
         - As of 3.9.6, /e doesn't seem to work at all, although /E does
-        - The original intent was to never have output wrap (according to /Ll
-          or the default of 80), but this never took into account extra
+        - The original intent was to never have output wrap with /g (according
+          to /Ll or the default of 80), but this never took into account extra
           columns being output.
 ''' )
 
@@ -271,6 +261,9 @@ revision history:
 def outputTotalStats( size = 0, lines = 0, separator = False ):
     global fileSizeLength
     global lineCountLength
+
+    if outputSize not in outputOrder:
+        print( format( size, fileSizeFormat ), end=' ' )
 
     for outputType in outputOrder:
         if outputType == outputAccessed:
@@ -295,11 +288,11 @@ def outputTotalStats( size = 0, lines = 0, separator = False ):
 
 #//******************************************************************************
 #//
-#//  outputDirTotalStats
+#//  outputFileStats
 #//
 #//******************************************************************************
 
-def outputDirTotalStats( absoluteFileName, fileSize, lineCount, attributeFlags ):
+def outputFileStats( absoluteFileName, fileSize, lineCount, attributeFlags ):
     for outputType in outputOrder:
         if outputType == outputAccessed:
             out_date = datetime.fromtimestamp( round( os.stat( absoluteFileName ).st_atime, 0 ) )
@@ -449,7 +442,7 @@ command-line options:
         backup found files to a location relative to dir
 
     /c command, --execute_command command
-        execute a command for each file
+        execute a command for each file (currently unsupported in Linux)
 
     /D {a,c,m} --output_timestamp {a,c,m}
         output file timestamp, a = last accessed, c = created, m = last
@@ -477,7 +470,7 @@ command-line options:
         set the amount of size of the file count column
 
     /Ll n, --line_length n
-        set the default line length for displaying text (default is 80)
+        set the default line length for displaying text, used with /g (default is 80)
 
     /Ln n, --line_count_length n
         set the default size of the line count column
@@ -681,7 +674,6 @@ def main( ):
     outputRelativePath = args.output_relative_path
     outputTotals = args.output_totals
     outputTimestamp = args.output_timestamp
-    outputFileSize = args.output_file_size
     outputDirTotals = args.output_dir_totals
     executeCommand = args.execute_command
     backupLocation = args.backup
@@ -809,14 +801,14 @@ def main( ):
             if os.name == 'nt' and fileAttributes:
                 attributeFlags = win32file.GetFileAttributes( absoluteFileName )
 
-            if executeCommand != '':
+            if executeCommand != '' and os.name == 'nt':
                 base, extension = os.path.splitext( fileName )
                 extension = extension.strip( )  # unix puts in a newline supposedly
 
                 translatedCommand = translateCommand( executeCommand, base, extension, currentAbsoluteDir,
                                                       absoluteFileName, currentRelativeDir, relativeFileName )
 
-                if not hideCommandOutput:
+                if hideCommandOutput:
                     translatedCommand += ' > ' + os.devnull
 
                 if printCommandOnly:
@@ -856,7 +848,7 @@ def main( ):
                         print( blankLine, end='\r', file=sys.stderr )
                         statusLineDirty = False
 
-                    outputDirTotalStats( absoluteFileName, fileSize, lineCount, attributeFlags )
+                    outputFileStats( absoluteFileName, fileSize, lineCount, attributeFlags )
 
                     if outputRelativePath:
                         if fileNameTruncation:
@@ -886,9 +878,14 @@ def main( ):
                     print( blankLine, end='\r', file=sys.stderr )
                     statusLineDirty = False
 
-                outputTotalStats( dirTotal, lineTotal )
+                if not outputDirTotalsOnly:
+                    print( )
 
+                outputTotalStats( dirTotal, lineTotal )
                 print( currentDir )
+
+                if not outputDirTotalsOnly:
+                    print( )
 
         if outputTotals:
             grandDirTotal += dirTotal
