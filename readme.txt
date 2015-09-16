@@ -8,23 +8,29 @@ but that it was actually faster, too.
 Since this is something I use a lot, especially at work, it's been pretty well
 bug-tested and featureful.
 
+As of 3.10.0, I've made the program compatible with Linux, something I should
+have done years ago.  It also works on Python 2.  I tested it (but not
+comprehensively) on 2.6 and 2.7.
+
 Rick
 
-  c:\sys\ut>whereis /?
+c:\>whereis /?
 
-  usage:  whereis [options] [filespec] [target]
+whereis 3.10.0
 
-  Search for files with names matching 'filespec' in the location specified
-  by 'target'.
+usage:  whereis [options] [filespec] [target]
 
-  filespec defaults to '*.*'
+Search for files with names matching 'filespec' in the location specified
+by 'target'.
 
-  target defaults to '.'
+filespec defaults to '*.*'
 
-  If only one argument is specified, whereis attempts to determine if it is a
-  filespec or target.
+target defaults to '.'
 
-  command-line options:
+If only one argument is specified, whereis attempts to determine if it is a
+filespec or target.
+
+command-line options:
 
     /?, /h, --print_help
         output this help message and exit
@@ -33,13 +39,13 @@ Rick
         quit after finding one file
 
     /a, --file_attributes
-        print file attributes
+        print file attributes (file permissions on Linux)
 
     /b dir, --backup dir
         backup found files to a location relative to dir
 
     /c command, --execute_command command
-        execute a command for each file (see -hh for details)
+        execute a command for each file (currently unsupported in Linux)
 
     /D {a,c,m} --output_timestamp {a,c,m}
         output file timestamp, a = last accessed, c = created, m = last
@@ -57,7 +63,7 @@ Rick
     /g, --filename_truncation
         whereis attempts to display the filenames on a single line
 
-    /i filespec [filespec ...], --include_filespec fielspec [filespec ...]
+    /i filespec [filespec ...], --include_filespec filespec [filespec ...]
         include additional filespecs for searching
 
     /l, --count_lines
@@ -67,7 +73,7 @@ Rick
         set the amount of size of the file count column
 
     /Ll n, --line_length n
-        set the default line length for displaying text (default is 80)
+        set the default line length for displaying text, used with /g (default is 80)
 
     /Ln n, --line_count_length n
         set the default size of the line count column
@@ -76,14 +82,14 @@ Rick
         set the default size of the file size column
 
     /m, --no_commas
-        display numerical values with no commas
+        display numerical values with no commas (Python 2.6 does not support commas)
 
     /n [n], --max_depth [n]
         maximum directory depth to recurse when searching, defaults to infinite
         if /n is not specified or 1 directory if /n is specified with no value
 
     /q, --quiet
-        suppress unnecessary output
+        suppress status output
 
     /r, --output_relative_path
         output a relative path to the current directory for files rather than
@@ -110,4 +116,5 @@ Rick
     /z, --print_command_only
         the same as /c, except the command is not executed, but output to the
         console
+
 

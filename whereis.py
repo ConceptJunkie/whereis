@@ -43,7 +43,7 @@ python26 = sys.version_info[ : 2 ] == ( 2, 6 )
 #//******************************************************************************
 
 PROGRAM_NAME = 'whereis'
-VERSION = '3.9.13'
+VERSION = '3.10.0'
 COPYRIGHT_MESSAGE = 'copyright (c) 2014 (1997), Rick Gutleber (rickg@his.com)'
 
 currentDir = ''
@@ -104,6 +104,7 @@ if os.name == 'nt':
     argumentPrefix = argumentPrefixLinux
     prefixList = prefixListLinux
     copyCommand = copyCommandLinux
+
 
 #//******************************************************************************
 #//
