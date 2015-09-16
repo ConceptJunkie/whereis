@@ -14,16 +14,17 @@ import os
 import platform
 import re
 
-if six.PY2:
-    import repr as reprlib
-else:
-    import reprlib              # prevents barfing on weird characters in filenames
-
 import shlex
+import shutil
 import subprocess
 import sys
 import threading
 import time
+
+if six.PY2:
+    import repr as reprlib
+else:
+    import reprlib              # prevents barfing on weird characters in filenames
 
 if os.name == 'nt':
     import win32con
@@ -96,6 +97,22 @@ outputOrder = list( )
 statusLineDirty = False
 oldOutput = ''
 
+# OS-specific strings
+
+copyCommandWindows = "copy"
+copyCommandLinux = "cp"
+
+prefixListLinux = argumentPrefixLinux
+prefixListWindows = argumentPrefixLinux + argumentPrefixWindows
+
+if os.name == 'nt':
+    argumentPrefix = argumentPrefixWindows
+    prefixList = prefixListWindows
+    copyCommand = copyCommandWindows
+else:
+    argumentPrefix = argumentPrefixLinux
+    prefixList = prefixListLinux
+    copyCommand = copyCommandLinux
 
 #//******************************************************************************
 #//
@@ -403,8 +420,7 @@ def statusProcess( ):
 #//******************************************************************************
 
 def printHelp( ):
-    print(
-PROGRAM_NAME + ' ' + VERSION +
+    helpText = \
 '''
 usage:  whereis [options] [filespec] [target]
 
@@ -433,7 +449,7 @@ command-line options:
         backup found files to a location relative to dir
 
     /c command, --execute_command command
-        execute a command for each file (see -hh for details)
+        execute a command for each file
 
     /D {a,c,m} --output_timestamp {a,c,m}
         output file timestamp, a = last accessed, c = created, m = last
@@ -477,7 +493,7 @@ command-line options:
         if /n is not specified or 1 directory if /n is specified with no value
 
     /q, --quiet
-        suppress unnecessary output
+        suppress status output
 
     /r, --output_relative_path
         output a relative path to the current directory for files rather than
@@ -503,7 +519,13 @@ command-line options:
 
     /z, --print_command_only
         the same as /c, except the command is not executed, but output to the
-        console''' )
+        console
+'''
+
+    if os.name != 'nt':
+        helpText = helpText.replace( argumentPrefixWindows, argumentPrefixLinux )
+
+    print( PROGRAM_NAME + ' ' + VERSION + '\n' + helpText )
 
 
 #//******************************************************************************
@@ -532,13 +554,6 @@ def main( ):
     global statusLineDirty
 
     blankLine = ' ' * ( defaultLineLength - 1 )
-
-    if os.name == 'nt':
-        argumentPrefix = argumentPrefixWindows
-        prefixList = prefixListWindows
-    else:
-        argumentPrefix = argumentPrefixLinux
-        prefixList = prefixListLinux
 
     parser = argparse.ArgumentParser( prog=PROGRAM_NAME, description=PROGRAM_NAME + ' - ' + VERSION + ' - ' +
                                       COPYRIGHT_MESSAGE, prefix_chars=prefixList, add_help=False )
@@ -712,7 +727,11 @@ def main( ):
         return
 
     if ( backupLocation != '' ) and ( not os.path.isdir( backupLocation ) ):
-        print( "whereis: backup location '" + backupLocation + "' does not exist or cannot be accessed", file=sys.stderr )
+        try:
+            os.makedirs( backupLocation )
+        except:
+            print( "whereis: backup location '" + backupLocation + "' cannot be created", file=sys.stderr )
+
         return
 
     # start status thread
@@ -816,12 +835,19 @@ def main( ):
 
             if backupLocation != '':
                 if not createdBackupDir:
-                    backupTargetDir = os.path.join( backupLocation, top )
-                    print( 'mkdir -p "' + backupTargetDir + TO_DEV_NULL )
+                    backupTargetDir = os.path.join( backupLocation, currentRelativeDir )
+
+                    if not os.path.exists( backupTargetDir ):
+                        os.makedirs( backupTargetDir )
+
                     createdBackupDir = True
 
-                backupTargetFile = os.path.join( backupLocation, relativeFileName )
-                print( 'copy "' + absoluteFileName + '" "' + backupTargetFile + TO_DEV_NULL )
+                backupTargetFileName = os.path.join( backupLocation, relativeFileName )
+
+                try:
+                    shutil.copy2( absoluteFileName, backupTargetDir )
+                except:
+                    print( 'error copying ' + absoluteFileName + ' to ' + backupTargetDir )
 
             if not outputDirTotalsOnly:
                 with outputLock:
