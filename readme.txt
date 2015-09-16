@@ -1,16 +1,17 @@
-whereis started out 1997 as a C++ program and was something I've used almost
+whereis started out 1997 as a C++ program and is something I've used almost
 daily on Windows since then.
 
 As an exercise in learning Python, I ported it to Python about 2 years and
 discovered to my delight that not only was the code a lot smaller in Python,
-but that it was actually faster, too.
+but that it was actually faster, too.  With Python 3.5, it's become
+significantly faster still.
 
 Since this is something I use a lot, especially at work, it's been pretty well
 bug-tested and featureful.
 
 As of 3.10.0, I've made the program compatible with Linux, something I should
-have done years ago.  It also works on Python 2.  I tested it (but not
-comprehensively) on 2.6 and 2.7.
+have done years ago.  It also works on Python 2.  I've tested it (but not
+comprehensively) with Python 2.6 and 2.7.
 
 Rick
 
@@ -116,5 +117,4 @@ command-line options:
     /z, --print_command_only
         the same as /c, except the command is not executed, but output to the
         console
-
 
