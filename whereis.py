@@ -873,19 +873,20 @@ def main( ):
                 break
 
         if outputDirTotals or outputDirTotalsOnly:
-            with outputLock:
-                if not quiet and statusLineDirty:
-                    print( blankLine, end='\r', file=sys.stderr )
-                    statusLineDirty = False
+            if outputDirTotalsOnly or dirTotal > 0:
+                with outputLock:
+                    if not quiet and statusLineDirty:
+                        print( blankLine, end='\r', file=sys.stderr )
+                        statusLineDirty = False
 
-                if not outputDirTotalsOnly:
-                    print( )
+                    if not outputDirTotalsOnly:
+                        print( )
 
-                outputTotalStats( dirTotal, lineTotal )
-                print( currentDir )
+                    outputTotalStats( dirTotal, lineTotal )
+                    print( currentDir )
 
-                if not outputDirTotalsOnly:
-                    print( )
+                    if not outputDirTotalsOnly:
+                        print( )
 
         if outputTotals:
             grandDirTotal += dirTotal
