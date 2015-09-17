@@ -1,0 +1,6 @@
+include whereis.py
+include setup.py
+include build.bat
+include gpl-3.0.txt
+include requirements.txt
+
