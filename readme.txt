@@ -13,6 +13,16 @@ As of 3.10.0, I've made the program compatible with Linux, something I should
 have done years ago.  It also works on Python 2.  I've tested it (but not
 comprehensively) with Python 2.6 and 2.7.
 
+Using whereis in Linux requires suppressing bash globbing.  I put this in my
+.bashrc:
+
+function whereis( ) {
+    python ~/bin/whereis.py "$@";
+}
+
+Note that on Linux, the command-line switches are denoted by '-' instead of
+'/'.
+
 Rick
 
 c:\>whereis /?
