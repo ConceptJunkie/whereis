@@ -43,8 +43,8 @@ python26 = sys.version_info[ : 2 ] == ( 2, 6 )
 #//******************************************************************************
 
 PROGRAM_NAME = 'whereis'
-VERSION = '3.10.0'
-COPYRIGHT_MESSAGE = 'copyright (c) 2014 (1997), Rick Gutleber (rickg@his.com)'
+VERSION = '3.10.1'
+COPYRIGHT_MESSAGE = 'copyright (c) 2017 (1997), Rick Gutleber (rickg@his.com)'
 
 currentDir = ''
 currentDirCount = 0
@@ -949,13 +949,12 @@ def main( ):
 
 #//******************************************************************************
 #//
-#//  __main__
+#//  startUp
 #//
 #//******************************************************************************
 
-if __name__ == '__main__':
+def startUp( ):
     global blankLine
-    global quiet
 
     try:
         main( )
@@ -967,6 +966,15 @@ if __name__ == '__main__':
 
     stopEvent.set( )
 
-    if not quiet:
-        print( blankLine, end='\r', file=sys.stderr )   # clear the status output
+    print( blankLine, end='\r', file=sys.stderr )   # clear the status output
+
+
+#//******************************************************************************
+#//
+#//  __main__
+#//
+#//******************************************************************************
+
+if __name__ == '__main__':
+    startUp( )
 
