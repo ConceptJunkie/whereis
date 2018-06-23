@@ -43,8 +43,8 @@ python26 = sys.version_info[ : 2 ] == ( 2, 6 )
 #//******************************************************************************
 
 PROGRAM_NAME = 'whereis'
-VERSION = '3.10.1'
-COPYRIGHT_MESSAGE = 'copyright (c) 2017 (1997), Rick Gutleber (rickg@his.com)'
+VERSION = '3.10.2'
+COPYRIGHT_MESSAGE = 'copyright (c) 2018 (1997), Rick Gutleber (rickg@his.com)'
 
 currentDir = ''
 currentDirCount = 0
@@ -245,6 +245,9 @@ revision history:
     3.10.0:  Linux compatibility, Python 2 compatibility, finally implemented
              /b (oops), fixed /c command output to console, fixed /e, /a
              outputs file permissions on Linux
+    3.10.1:  Cython support
+    3.10.2:  whereis now catches FileNotFound exceptions when trying to get
+             file information on files that are write-locked.
 
     Known bugs:
         - The original intent was to never have output wrap with /g (according
@@ -321,7 +324,10 @@ def makeUnixPermissionsString( _mode ):
 #//******************************************************************************
 
 def outputFileStats( absoluteFileName, fileSize, lineCount, attributeFlags ):
-    stat_result = os.stat( absoluteFileName )
+    try:
+        stat_result = os.stat( absoluteFileName )
+    except FileNotFoundError:
+        return
 
     for outputType in outputOrder:
         if outputType == outputAccessed:
@@ -826,6 +832,8 @@ def main( ):
             try:
                 fileSize = os.stat( absoluteFileName ).st_size
             except PermissionError:
+                fileSize = 0
+            except FileNotFoundError:
                 fileSize = 0
 
             dirTotal = dirTotal + fileSize
