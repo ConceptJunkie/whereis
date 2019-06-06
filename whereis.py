@@ -43,8 +43,8 @@ python26 = sys.version_info[ : 2 ] == ( 2, 6 )
 #//******************************************************************************
 
 PROGRAM_NAME = 'whereis'
-VERSION = '3.10.2'
-COPYRIGHT_MESSAGE = 'copyright (c) 2018 (1997), Rick Gutleber (rickg@his.com)'
+VERSION = '3.10.3'
+COPYRIGHT_MESSAGE = 'copyright (c) 2019 (1997), Rick Gutleber (rickg@his.com)'
 
 currentDir = ''
 currentDirCount = 0
@@ -248,6 +248,8 @@ revision history:
     3.10.1:  Cython support
     3.10.2:  whereis now catches FileNotFound exceptions when trying to get
              file information on files that are write-locked.
+    3.10.3:  whereis now catches OSError exceptions, which are thrown when,
+             for instance, a file has the name "CON".
 
     Known bugs:
         - The original intent was to never have output wrap with /g (according
@@ -327,6 +329,8 @@ def outputFileStats( absoluteFileName, fileSize, lineCount, attributeFlags ):
     try:
         stat_result = os.stat( absoluteFileName )
     except FileNotFoundError:
+        return
+    except OSError:
         return
 
     for outputType in outputOrder:
@@ -835,6 +839,8 @@ def main( ):
                 fileSize = 0
             except FileNotFoundError:
                 fileSize = 0
+            except OSError:
+                fileSize = 0
 
             dirTotal = dirTotal + fileSize
             fileCount += 1
@@ -924,7 +930,7 @@ def main( ):
                         print( )
 
                     outputTotalStats( dirTotal, lineTotal )
-                    print( currentDir )
+                    print( currentDir.encode( sys.stdout.encoding, errors='replace' ) )
 
                     if not outputDirTotalsOnly:
                         print( )
