@@ -7,13 +7,13 @@ import six
 
 import argparse
 import codecs
+import filecmp
 import fnmatch
 import itertools
 import locale
 import os
 import platform
 import re
-
 import shlex
 import shutil
 import subprocess
@@ -43,7 +43,7 @@ python26 = sys.version_info[ : 2 ] == ( 2, 6 )
 #//******************************************************************************
 
 PROGRAM_NAME = 'whereis'
-VERSION = '3.10.3'
+VERSION = '3.11.0'
 COPYRIGHT_MESSAGE = 'copyright (c) 2019 (1997), Rick Gutleber (rickg@his.com)'
 
 currentDir = ''
@@ -85,6 +85,8 @@ outputOrder = list( )
 statusLineDirty = False
 oldOutput = ''
 
+findDupes = False
+
 # OS-specific strings
 
 copyCommandWindows = "copy"
@@ -100,7 +102,7 @@ if os.name == 'nt':
     argumentPrefix = argumentPrefixWindows
     prefixList = prefixListWindows
     copyCommand = copyCommandWindows
-else:
+else:
     argumentPrefix = argumentPrefixLinux
     prefixList = prefixListLinux
     copyCommand = copyCommandLinux
@@ -250,6 +252,8 @@ revision history:
              file information on files that are write-locked.
     3.10.3:  whereis now catches OSError exceptions, which are thrown when,
              for instance, a file has the name "CON".
+    3.11.0:  added /y to search for duplicate files and /w to add extra source
+             directories to search
 
     Known bugs:
         - The original intent was to never have output wrap with /g (according
@@ -441,7 +445,7 @@ def statusProcess( ):
                 output = output[ 0 : lineLength - 4 ] + '...'
 
             if output != oldOutput:
-                print( blankLine + '\r' + output, end='\r', file=sys.stderr )
+                print( blankLine + '\r' + output + '\r', end='', file=sys.stderr )
                 sys.stderr.flush( )
                 statusLineDirty = True
                 oldOutput = output
@@ -605,7 +609,7 @@ def main( ):
     parser.add_argument( argumentPrefix + 'f', '--folders-only', action='store_true' )
     parser.add_argument( argumentPrefix + 'g', '--filename_truncation', action='store_true' )
     parser.add_argument( argumentPrefix + 'h', '--print_help2', action='store_true' )
-    parser.add_argument( argumentPrefix + 'i', '--include_filespec', action='append', nargs="+" )
+    parser.add_argument( argumentPrefix + 'i', '--include_filespec', action='append', nargs='+' )
     parser.add_argument( argumentPrefix + 'l', '--count_lines', action='store_true' )
     parser.add_argument( argumentPrefix + 'Lf', '--file_count_length', type=int, default=defaultFileCountLength )
     parser.add_argument( argumentPrefix + 'Ll', '--line_length', type=int, default=defaultLineLength )
@@ -619,9 +623,11 @@ def main( ):
     parser.add_argument( argumentPrefix + 's', '--output_file_size', action='store_true' )
     parser.add_argument( argumentPrefix + 't', '--output_totals', action='store_true' )
     parser.add_argument( argumentPrefix + 'u', '--hide_command_output', action='store_true' )
+    parser.add_argument( argumentPrefix + 'w', '--extra_target', action='append', nargs='+' )
     parser.add_argument( argumentPrefix + 'v', '--version', action='version', version='%(prog)s ' + VERSION )
     parser.add_argument( argumentPrefix + 'vv', '--version_history', action='store_true' )
     parser.add_argument( argumentPrefix + 'x', '--exclude_filespec', action='append', nargs='+' )
+    parser.add_argument( argumentPrefix + 'y', '--find_dupes', action='store_true' )
     parser.add_argument( argumentPrefix + 'z', '--print_command_only', action='store_true' )
     parser.add_argument( argumentPrefix + '?', '--print_help', action='store_true' )
 
@@ -633,6 +639,8 @@ def main( ):
     prog = ''
     fileSpec = ''
     sourceDir = ''
+
+    extraSourceDirs = [ ]
 
     copyNextOne = False
 
@@ -653,7 +661,7 @@ def main( ):
                 print( 'ignoring extra arg: ' + arg )
         else:
             new_argv.append( arg )
-            copyNextOne = arg[ 1 ] in 'bciLx'   # these are args that can have parameters
+            copyNextOne = arg[ 1 ] in 'bciLwx'   # these are args that can have parameters
 
             # build the output order list
             if arg[ 1 ] == 'a':
@@ -693,15 +701,18 @@ def main( ):
         return
 
     # let's handle all the flags and values parsed off the command-line
-    if args.include_filespec == None:
-        includeFileSpecs = list( )
-    else:
+    if args.include_filespec:
         includeFileSpecs = list( itertools.chain( *args.include_filespec ) )
-
-    if args.exclude_filespec == None:
-        excludeFileSpecs = list( )
     else:
+        includeFileSpecs = list( )
+
+    if args.exclude_filespec:
         excludeFileSpecs = list( itertools.chain( *args.exclude_filespec ) )
+    else:
+        excludeFileSpecs = list( )
+
+    if args.extra_target:
+        extraSourceDirs = list( itertools.chain( *args.extra_target ) )
 
     fileCountLength = args.file_count_length
     fileSizeLength = args.file_size_length
@@ -741,6 +752,8 @@ def main( ):
 
     fileNameRepr = reprlib.Repr( )
     fileNameRepr.maxstring = lineLength - 1    # sets max string length of repr
+
+    findDupes = args.find_dupes
 
     #redirected = not sys.stdout.isatty( )
 
@@ -786,179 +799,279 @@ def main( ):
 
     attributeFlags = 0
 
+    sourceDirs = [ sourceDir ]
+    sourceDirs.extend( extraSourceDirs )
+
+    # We'll use this if we want to find duplicates.
+    filesAndSizes = { }
+
     # walk the tree
-    for top, dirs, files in os.walk( sourceDir ):
-        top = os.path.normpath( top )
+    for currentSourceDir in sourceDirs:
+        for top, dirs, files in os.walk( currentSourceDir ):
+            top = os.path.normpath( top )
 
-        # performance note:  We're still going to walk all the directories even if we are ignoring them.
-        #                    I haven't figured out how to avoid that.
-        if maxDepth > 0:
-            depth = top.count( os.sep ) + 1
+            # performance note:  We're still going to walk all the directories even if we are ignoring them.
+            #                    I haven't figured out how to avoid that.
+            if maxDepth > 0:
+                depth = top.count( os.sep ) + 1
 
-            if top != '' and top[ 0 ] != os.sep and top[ 0 ] != '.':
-                depth += 1
+                if top != '' and top[ 0 ] != os.sep and top[ 0 ] != '.':
+                    depth += 1
 
-            if depth > maxDepth:
-                continue
+                if depth > maxDepth:
+                    continue
 
-        currentAbsoluteDir = os.path.abspath( top )
-        currentRelativeDir = os.path.relpath( top, sourceDir )
+            currentAbsoluteDir = os.path.abspath( top )
+            currentRelativeDir = os.path.relpath( top, currentSourceDir )
 
-        if outputRelativePath:
-            currentDir = currentRelativeDir
-        else:
-            currentDir = currentAbsoluteDir
+            if outputRelativePath:
+                currentDir = currentRelativeDir
+            else:
+                currentDir = currentAbsoluteDir
 
-        currentDirCount += 1
-        currentFileCount = 0
+            currentDirCount += 1
+            currentFileCount = 0
 
-        dirTotal = 0
-        lineTotal = 0
+            dirTotal = 0
+            lineTotal = 0
 
-        # build the set of files that match our criteria
-        fileSet = set( fnmatch.filter( files, fileSpec ) )
+            # build the set of files that match our criteria
+            fileSet = set( fnmatch.filter( files, fileSpec ) )
 
-        for includeFileSpec in includeFileSpecs:
-            fileSet = fileSet.union( set( fnmatch.filter( files, includeFileSpec ) ) )
+            for includeFileSpec in includeFileSpecs:
+                fileSet = fileSet.union( set( fnmatch.filter( files, includeFileSpec ) ) )
 
-        for excludeFileSpec in excludeFileSpecs:
-            fileSet = fileSet.difference( set( fnmatch.filter( files, excludeFileSpec ) ) )
+            for excludeFileSpec in excludeFileSpecs:
+                fileSet = fileSet.difference( set( fnmatch.filter( files, excludeFileSpec ) ) )
 
-        createdBackupDir = ( top == '.' )
+            createdBackupDir = ( top == '.' )
 
-        # now we have the list of files, so let's sort them and handle them
-        for fileName in sorted( fileSet, key=str.lower ):
-            currentFileCount += 1
+            # now we have the list of files, so let's sort them and handle them
+            for fileName in sorted( fileSet, key=str.lower ):
+                currentFileCount += 1
 
-            absoluteFileName = os.path.join( currentAbsoluteDir, fileName )
-            relativeFileName = os.path.join( currentRelativeDir, fileName )
-
-            try:
-                fileSize = os.stat( absoluteFileName ).st_size
-            except PermissionError:
-                fileSize = 0
-            except FileNotFoundError:
-                fileSize = 0
-            except OSError:
-                fileSize = 0
-
-            dirTotal = dirTotal + fileSize
-            fileCount += 1
-
-            if os.name == 'nt' and fileAttributes:
-                attributeFlags = win32file.GetFileAttributes( absoluteFileName )
-
-            if executeCommand != '' and os.name == 'nt':
-                base, extension = os.path.splitext( fileName )
-                extension = extension.strip( )  # unix puts in a newline supposedly
-
-                translatedCommand = translateCommand( executeCommand, base, extension, currentAbsoluteDir,
-                                                      absoluteFileName, currentRelativeDir, relativeFileName )
-
-                if hideCommandOutput:
-                    translatedCommand += ' > ' + os.devnull
-
-                if printCommandOnly:
-                    print( blankLine, end='\r', file=sys.stderr )
-                    print( translatedCommand )
-                else:
-                    subprocess.Popen( shlex.split( translatedCommand ), shell=True )
-
-            lineCount = 0
-
-            if countLines:
-                for line in codecs.open( absoluteFileName, 'rU', 'ascii', 'replace' ):
-                    lineCount += 1
-
-                lineTotal = lineTotal + lineCount
-
-            if backupLocation != '':
-                if not createdBackupDir:
-                    backupTargetDir = os.path.join( backupLocation, currentRelativeDir )
-
-                    if not os.path.exists( backupTargetDir ):
-                        os.makedirs( backupTargetDir )
-
-                    createdBackupDir = True
-
-                backupTargetFileName = os.path.join( backupLocation, relativeFileName )
+                absoluteFileName = os.path.join( currentAbsoluteDir, fileName )
+                relativeFileName = os.path.join( currentRelativeDir, fileName )
 
                 try:
-                    shutil.copy2( absoluteFileName, backupTargetDir )
-                except:
-                    print( 'error copying ' + absoluteFileName + ' to ' + backupTargetDir )
+                    fileSize = os.stat( absoluteFileName ).st_size
+                except PermissionError:
+                    fileSize = 0
+                except FileNotFoundError:
+                    fileSize = 0
+                except OSError:
+                    fileSize = 0
 
-            if not outputDirTotalsOnly:
-                with outputLock:
-                    # this will clear the console line for output, if necessary
-                    if not quiet and statusLineDirty:
+                if findDupes:
+                    filesAndSizes[ absoluteFileName ] = fileSize
+
+                dirTotal = dirTotal + fileSize
+                fileCount += 1
+
+                if os.name == 'nt' and fileAttributes:
+                    attributeFlags = win32file.GetFileAttributes( absoluteFileName )
+
+                if executeCommand != '' and os.name == 'nt':
+                    base, extension = os.path.splitext( fileName )
+                    extension = extension.strip( )  # unix puts in a newline supposedly
+
+                    translatedCommand = translateCommand( executeCommand, base, extension, currentAbsoluteDir,
+                                                          absoluteFileName, currentRelativeDir, relativeFileName )
+
+                    if hideCommandOutput:
+                        translatedCommand += ' > ' + os.devnull
+
+                    if printCommandOnly:
                         print( blankLine, end='\r', file=sys.stderr )
-                        statusLineDirty = False
-
-                    outputFileStats( absoluteFileName, fileSize, lineCount, attributeFlags )
-
-                    if outputRelativePath:
-                        if fileNameTruncation:
-                            outputText = fileNameRepr.repr( relativeFileName ).replace( '\\\\', '\\' )[ 1 : -1 ]
-                        else:
-                            outputText = relativeFileName.replace( '\\\\', '\\' )
+                        print( translatedCommand )
                     else:
-                        if fileNameTruncation:
-                            outputText = fileNameRepr.repr( absoluteFileName ).replace( '\\\\', '\\' )[ 1 : -1 ]
-                        else:
-                            outputText = absoluteFileName.replace( '\\\\', '\\' )
+                        subprocess.Popen( shlex.split( translatedCommand ), shell=True )
+
+                lineCount = 0
+
+                if countLines:
+                    for line in codecs.open( absoluteFileName, 'rU', 'ascii', 'replace' ):
+                        lineCount += 1
+
+                    lineTotal = lineTotal + lineCount
+
+                if backupLocation != '':
+                    if not createdBackupDir:
+                        backupTargetDir = os.path.join( backupLocation, currentRelativeDir )
+
+                        if not os.path.exists( backupTargetDir ):
+                            os.makedirs( backupTargetDir )
+
+                        createdBackupDir = True
+
+                    backupTargetFileName = os.path.join( backupLocation, relativeFileName )
 
                     try:
-                        print( outputText )
+                        shutil.copy2( absoluteFileName, backupTargetDir )
                     except:
-                        print( "whereis: unicode filename found ('" +
-                               str( outputText.encode( 'ascii', 'backslashreplace' ) ) + "')", file=sys.stderr )
+                        print( 'error copying ' + absoluteFileName + ' to ' + backupTargetDir )
 
-            foundOne = True
+                if not outputDirTotalsOnly:
+                    with outputLock:
+                        # this will clear the console line for output, if necessary
+                        if not quiet and statusLineDirty:
+                            print( blankLine, end='\r', file=sys.stderr )
+                            statusLineDirty = False
 
-            if findOne:
+                        outputFileStats( absoluteFileName, fileSize, lineCount, attributeFlags )
+
+                        if outputRelativePath:
+                            if fileNameTruncation:
+                                outputText = fileNameRepr.repr( relativeFileName ).replace( '\\\\', '\\' )[ 1 : -1 ]
+                            else:
+                                outputText = relativeFileName.replace( '\\\\', '\\' )
+                        else:
+                            if fileNameTruncation:
+                                outputText = fileNameRepr.repr( absoluteFileName ).replace( '\\\\', '\\' )[ 1 : -1 ]
+                            else:
+                                outputText = absoluteFileName.replace( '\\\\', '\\' )
+
+                        try:
+                            print( outputText )
+                        except:
+                            print( "whereis: unicode filename found ('" +
+                                   str( outputText.encode( 'ascii', 'backslashreplace' ) ) + "')", file=sys.stderr )
+
+                foundOne = True
+
+                if findOne:
+                    break
+
+            if outputDirTotals or outputDirTotalsOnly:
+                if outputDirTotalsOnly or dirTotal > 0:
+                    with outputLock:
+                        if not quiet and statusLineDirty:
+                            print( blankLine, end='\r', file=sys.stderr )
+                            statusLineDirty = False
+
+                        if not outputDirTotalsOnly:
+                            print( )
+
+                        outputTotalStats( dirTotal, lineTotal )
+                        print( currentDir.encode( sys.stdout.encoding, errors='replace' ) )
+
+                        if not outputDirTotalsOnly:
+                            print( )
+
+            if outputTotals:
+                grandDirTotal += dirTotal
+                grandLineTotal += lineTotal
+                currentDirCount += 1
+
+            if foundOne and findOne:
                 break
 
-        if outputDirTotals or outputDirTotalsOnly:
-            if outputDirTotalsOnly or dirTotal > 0:
-                with outputLock:
-                    if not quiet and statusLineDirty:
-                        print( blankLine, end='\r', file=sys.stderr )
-                        statusLineDirty = False
-
-                    if not outputDirTotalsOnly:
-                        print( )
-
-                    outputTotalStats( dirTotal, lineTotal )
-                    print( currentDir.encode( sys.stdout.encoding, errors='replace' ) )
-
-                    if not outputDirTotalsOnly:
-                        print( )
-
         if outputTotals:
-            grandDirTotal += dirTotal
-            grandLineTotal += lineTotal
-            currentDirCount += 1
+            with outputLock:
+                if not quiet and statusLineDirty:
+                    print( blankLine, end='\r', file=sys.stderr )
+                    statusLineDirty = False
 
-        if foundOne and findOne:
-            break
+                outputTotalStats( separator = True )
 
-    if outputTotals:
-        with outputLock:
-            if not quiet and statusLineDirty:
-                print( blankLine, end='\r', file=sys.stderr )
-                statusLineDirty = False
+                print( '-' * fileCountLength )
 
-            outputTotalStats( separator = True )
+                outputTotalStats( grandDirTotal, grandLineTotal )
 
-            print( '-' * fileCountLength )
+                if outputDirTotalsOnly:
+                    print( format( currentDirCount, fileCountFormat ) )
+                else:
+                    print( format( fileCount, fileCountFormat ) )
 
-            outputTotalStats( grandDirTotal, grandLineTotal )
+    # hey, we might not be done yet...
+    if not findDupes:
+        return
 
-            if outputDirTotalsOnly:
-                print( format( currentDirCount, fileCountFormat ) )
-            else:
-                print( format( fileCount, fileCountFormat ) )
+    sizesAndFiles = { }
+
+    # flip the dictionary into a reverse multidict
+    for key, value in filesAndSizes.items( ):
+        sizesAndFiles.setdefault( value, set( ) ).add( key )
+
+    # now for any key that has multiple values, those values are files
+    # we need to actually compare, so let's make a list of those files
+    fileSetsToCompare = list( values for key, values in sizesAndFiles.items( ) if len( values ) > 1 )
+
+    print( )
+
+    matchResults = [ ]
+
+    for fileSet in fileSetsToCompare:
+        if len( fileSet ) == 1:
+            continue
+
+        fileResults = { }
+
+        for file in fileSet:
+            fileResults[ file ] = 0
+
+        fileFlavor = 1
+
+        for firstFile, secondFile in itertools.combinations( fileSet, 2 ):
+            if fileResults[ firstFile ] == 0 or fileResults[ secondFile ] == 0:
+                print( f"Comparing '{firstFile}' and '{secondFile}'..." )
+
+                if filecmp.cmp( firstFile, secondFile, shallow=False ):
+                    if fileResults[ firstFile ] == 0:
+                        if fileResults[ secondFile ] != 0:
+                            fileResults[ firstFile ] = fileResults[ secondFile ]
+                        else:
+                            fileResults[ firstFile ] = fileFlavor
+                            fileResults[ secondFile ] = fileFlavor
+                            fileFlavor += 1
+                    else:
+                        fileResults[ secondFile ] = fileResults[ firstFile ]
+
+        fileFlavors = { }
+
+        # do the reverse multidict thing _again_
+        for key, value in fileResults.items( ):
+            fileFlavors.setdefault( value, set( ) ).add( key )
+
+        #print( 'fileFlavors', fileFlavors )
+
+        # extracts sets of files that match so we can print them out
+        fileSetsThatMatch = [ ]
+
+        for key, value in fileFlavors.items( ):
+            #print( 'value', value )
+            if key > 0 and len( value ) > 1:
+                fileSetsThatMatch.append( list( value ) )
+
+        #print( 'fileSetsThatMatch', fileSetsThatMatch )
+
+        for fileSet in fileSetsThatMatch:
+            matchResults.append( fileSet )
+
+    print( )
+    print( 'Match results...' )
+
+    maxSize = [ 0, 0 ]
+
+    for matchResult in matchResults:
+        matches = sorted( matchResult )
+
+        if len( maxSize ) < len( matches ):
+            maxSize.extend( [ 0 ] * ( len( matches ) - len( maxSize ) ) )
+
+        for i, match in enumerate( matches ):
+            if maxSize[ i ] < len( match ):
+                maxSize[ i ] = len( match )
+
+    for matchResult in matchResults:
+        matches = sorted( matchResult )
+
+        output = ''
+
+        for match in matches:
+            output += '"' + match + '",' + ' ' * ( maxSize[ i ] - len( match ) + 5 )
+
+        print( output )
 
 
 #//******************************************************************************
