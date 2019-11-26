@@ -554,8 +554,14 @@ command-line options:
     /vv, --version_history
         output the version history
 
+    /w filespec [filespec ...], --extra_target filespec [filespec ...]
+        adds one or more additional directories to search
+
     /x filespec [filespec ...], --exclude_filespec filespec [filespec ...]
         exclude filespecs from searching
+
+    /y, --find_dupes
+        search for duplicate files in files listed in output
 
     /z, --print_command_only
         the same as /c, except the command is not executed, but output to the
