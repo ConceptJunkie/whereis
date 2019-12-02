@@ -1,6 +1,19 @@
 #!/usr/bin/env python
 # -*- coding: latin-1 -*-
 
+#******************************************************************************
+#
+#  whereis.py
+#
+#  File searching utility
+#
+#  copyright (c) 2019, Rick Gutleber (rickg@his.com)
+#
+#  License: GNU GPL 3.0 (see <http://www.gnu.org/licenses/gpl.html> for more
+#  information).
+#
+#******************************************************************************
+
 from __future__ import print_function
 
 import six
@@ -36,11 +49,11 @@ from os.path import join, getsize
 python26 = sys.version_info[ : 2 ] == ( 2, 6 )
 
 
-#//******************************************************************************
-#//
-#//  globals/constants
-#//
-#//******************************************************************************
+#******************************************************************************
+#
+#  globals/constants
+#
+#******************************************************************************
 
 PROGRAM_NAME = 'whereis'
 VERSION = '3.11.0'
@@ -108,11 +121,11 @@ else:
     copyCommand = copyCommandLinux
 
 
-#//******************************************************************************
-#//
-#//  printRevisionHistory
-#//
-#//******************************************************************************
+#******************************************************************************
+#
+#  printRevisionHistory
+#
+#******************************************************************************
 
 def printRevisionHistory( ):
     print( 'Python Version: ' + platform.python_version( ) )
@@ -262,11 +275,11 @@ revision history:
 ''' )
 
 
-#//**********************************************************************
-#//
-#//  outputTotalStats
-#//
-#//**********************************************************************
+#**********************************************************************
+#
+#  outputTotalStats
+#
+#**********************************************************************
 
 def outputTotalStats( size = 0, lines = 0, separator = False ):
     global fileSizeLength
@@ -296,14 +309,14 @@ def outputTotalStats( size = 0, lines = 0, separator = False ):
             print( ' ' * attributesLength, end = ' ' )
 
 
-#//******************************************************************************
-#//
-#//  makeUnixPermissionsString
-#//
-#//  We build the permissions string backwards by looking at the last 9 bits
-#//  of the mode value.
-#//
-#//******************************************************************************
+#******************************************************************************
+#
+#  makeUnixPermissionsString
+#
+#  We build the permissions string backwards by looking at the last 9 bits
+#  of the mode value.
+#
+#******************************************************************************
 
 def makeUnixPermissionsString( _mode ):
     modeString = 'xwr'  # backwards
@@ -323,11 +336,11 @@ def makeUnixPermissionsString( _mode ):
     return result
 
 
-#//******************************************************************************
-#//
-#//  outputFileStats
-#//
-#//******************************************************************************
+#******************************************************************************
+#
+#  outputFileStats
+#
+#******************************************************************************
 
 def outputFileStats( absoluteFileName, fileSize, lineCount, attributeFlags ):
     try:
@@ -364,34 +377,34 @@ def outputFileStats( absoluteFileName, fileSize, lineCount, attributeFlags ):
                 print( makeUnixPermissionsString( stat_result.st_mode ), end=' ' )
 
 
-#//******************************************************************************
-#//
-#//  translateCommand
-#//
-#//  Translate the '!' tokens in the command to be executed
-#//
-#//  !! - single exclamation point
-#//  !/ - OS-specific pathname separator
-#//  !0 - '/dev/null' (or OS equivalent)
-#//  !b - base filename (no extension)
-#//  !c - current working directory
-#//  !d - date (YYMMDD) when app was started
-#//  !D - date (YYYYMMDD) when app was started
-#//  !f - fully qualified filespec
-#//  !i - '<'
-#//  !n - OS-specific line separator
-#//  !o - '>'
-#//  !O - '>>'
-#//  !P - absolute path
-#//  !p - relative path
-#//  !q - double quote character (")
-#//  !r - relative filespec
-#//  !t - time of day (24-hour - HHMM) when app was started
-#//  !T - time of day (24-hour - HHMMSS) when app was started
-#//  !x - filename extension
-#//  !| - '|', pipe character
-#//
-#//******************************************************************************
+#******************************************************************************
+#
+#  translateCommand
+#
+#  Translate the '!' tokens in the command to be executed
+#
+#  !! - single exclamation point
+#  !/ - OS-specific pathname separator
+#  !0 - '/dev/null' (or OS equivalent)
+#  !b - base filename (no extension)
+#  !c - current working directory
+#  !d - date (YYMMDD) when app was started
+#  !D - date (YYYYMMDD) when app was started
+#  !f - fully qualified filespec
+#  !i - '<'
+#  !n - OS-specific line separator
+#  !o - '>'
+#  !O - '>>'
+#  !P - absolute path
+#  !p - relative path
+#  !q - double quote character (")
+#  !r - relative filespec
+#  !t - time of day (24-hour - HHMM) when app was started
+#  !T - time of day (24-hour - HHMMSS) when app was started
+#  !x - filename extension
+#  !| - '|', pipe character
+#
+#******************************************************************************
 
 def translateCommand( command, base, extension, currentAbsoluteDir, absoluteFileName, currentRelativeDir, \
                       relativeFileName ):
@@ -423,14 +436,14 @@ def translateCommand( command, base, extension, currentAbsoluteDir, absoluteFile
     return translatedCommand
 
 
-#//**********************************************************************
-#//
-#//  statusProcess
-#//
-#//  Sometimes whereis can be slow, so we update the current directory
-#//  count to stderr every 0.5 seconds unless /q is used.
-#//
-#//**********************************************************************
+#**********************************************************************
+#
+#  statusProcess
+#
+#  Sometimes whereis can be slow, so we update the current directory
+#  count to stderr every 0.5 seconds unless /q is used.
+#
+#**********************************************************************
 
 def statusProcess( ):
     global blankLine
@@ -453,11 +466,11 @@ def statusProcess( ):
         stopEvent.wait( 0.5 )
 
 
-#//******************************************************************************
-#//
-#//  printHelp
-#//
-#//******************************************************************************
+#******************************************************************************
+#
+#  printHelp
+#
+#******************************************************************************
 
 def printHelp( ):
     helpText = \
@@ -574,11 +587,11 @@ command-line options:
     print( PROGRAM_NAME + ' ' + VERSION + '\n' + helpText )
 
 
-#//******************************************************************************
-#//
-#//  main
-#//
-#//******************************************************************************
+#******************************************************************************
+#
+#  main
+#
+#******************************************************************************
 
 def main( ):
     global currentDir
@@ -1080,11 +1093,11 @@ def main( ):
         print( output )
 
 
-#//******************************************************************************
-#//
-#//  startUp
-#//
-#//******************************************************************************
+#******************************************************************************
+#
+#  startUp
+#
+#******************************************************************************
 
 def startUp( ):
     global blankLine
@@ -1102,11 +1115,11 @@ def startUp( ):
     print( blankLine, end='\r', file=sys.stderr )   # clear the status output
 
 
-#//******************************************************************************
-#//
-#//  __main__
-#//
-#//******************************************************************************
+#******************************************************************************
+#
+#  __main__
+#
+#******************************************************************************
 
 if __name__ == '__main__':
     startUp( )
