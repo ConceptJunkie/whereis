@@ -46,8 +46,6 @@ if os.name == 'nt':
 from datetime import datetime
 from os.path import join, getsize
 
-python26 = sys.version_info[ : 2 ] == ( 2, 6 )
-
 
 #******************************************************************************
 #
@@ -56,7 +54,7 @@ python26 = sys.version_info[ : 2 ] == ( 2, 6 )
 #******************************************************************************
 
 PROGRAM_NAME = 'whereis'
-VERSION = '3.11.0'
+VERSION = '3.11.1'
 COPYRIGHT_MESSAGE = 'copyright (c) 2019 (1997), Rick Gutleber (rickg@his.com)'
 
 currentDir = ''
@@ -267,6 +265,8 @@ revision history:
              for instance, a file has the name "CON".
     3.11.0:  added /y to search for duplicate files and /w to add extra source
              directories to search
+    3.11.1:  added /?! to display the help file for the /c mini specification
+             language, and modified the options to be more consistent
 
     Known bugs:
         - The original intent was to never have output wrap with /g (according
@@ -386,6 +386,7 @@ def outputFileStats( absoluteFileName, fileSize, lineCount, attributeFlags ):
 #  !! - single exclamation point
 #  !/ - OS-specific pathname separator
 #  !0 - '/dev/null' (or OS equivalent)
+#  !a - '>>'
 #  !b - base filename (no extension)
 #  !c - current working directory
 #  !d - date (YYMMDD) when app was started
@@ -394,7 +395,6 @@ def outputFileStats( absoluteFileName, fileSize, lineCount, attributeFlags ):
 #  !i - '<'
 #  !n - OS-specific line separator
 #  !o - '>'
-#  !O - '>>'
 #  !P - absolute path
 #  !p - relative path
 #  !q - double quote character (")
@@ -409,26 +409,25 @@ def outputFileStats( absoluteFileName, fileSize, lineCount, attributeFlags ):
 def translateCommand( command, base, extension, currentAbsoluteDir, absoluteFileName, currentRelativeDir, \
                       relativeFileName ):
     translatedCommand = command.replace( '!!', '!' )
-
     translatedCommand = translatedCommand.replace( '!/', os.sep )
-
     translatedCommand = translatedCommand.replace( '!0', os.devnull )
-    translatedCommand = translatedCommand.replace( '!D', datetime.now( ).strftime( "%Y%m%d" ) )
-    translatedCommand = translatedCommand.replace( '!O', '>>' )
-    translatedCommand = translatedCommand.replace( '!P', '"' + currentAbsoluteDir + '"' )
-    translatedCommand = translatedCommand.replace( '!T', datetime.now( ).strftime( "%H%M%S" ) )
 
+    translatedCommand = translatedCommand.replace( '!a', '>>' )
     translatedCommand = translatedCommand.replace( '!b', '"' + base + '"' )
+    translatedCommand = translatedCommand.replace( '!B', '"' + currentAbsoluteDir + os.sep + base + '"' )
     translatedCommand = translatedCommand.replace( '!c', '"' + os.getcwd( ) + '"' )
+    translatedCommand = translatedCommand.replace( '!D', datetime.now( ).strftime( "%Y%m%d" ) )
     translatedCommand = translatedCommand.replace( '!d', datetime.now( ).strftime( "%y%m%d" ) )
     translatedCommand = translatedCommand.replace( '!f', '"' + absoluteFileName + '"' )
     translatedCommand = translatedCommand.replace( '!i', '<' )
     translatedCommand = translatedCommand.replace( '!n', os.linesep )
     translatedCommand = translatedCommand.replace( '!o', '>' )
+    translatedCommand = translatedCommand.replace( '!P', '"' + currentAbsoluteDir + '"' )
     translatedCommand = translatedCommand.replace( '!p', '"' + currentRelativeDir + '"' )
     translatedCommand = translatedCommand.replace( '!q', '"' )
     translatedCommand = translatedCommand.replace( '!r', '"' + relativeFileName + '"' )
     translatedCommand = translatedCommand.replace( '!t', datetime.now( ).strftime( "%H%M" ) )
+    translatedCommand = translatedCommand.replace( '!T', datetime.now( ).strftime( "%H%M%S" ) )
     translatedCommand = translatedCommand.replace( '!x', '"' + extension + '"' )
 
     translatedCommand = translatedCommand.replace( '!|', '|' )
@@ -491,6 +490,9 @@ command-line options:
 
     /?, /h, --print_help
         output this help message and exit
+
+    /?!, --print_bang_help
+        output the /c mini-specification help
 
     /1, --find_one
         quit after finding one file
@@ -589,6 +591,39 @@ command-line options:
 
 #******************************************************************************
 #
+#  printBangHelp
+#
+#******************************************************************************
+
+def printBangHelp( ):
+    bangHelpText = \
+'''
+   !! - outputs a single '!'
+   !/ - outputs the OS-specific directory separator ('/' or '\\'')
+   !| - outputs the pipe character ('|')
+
+   !0 - outputs the OS-specific file sink ('/dev/null' or 'NUL')
+   !a - outputs the output append redirector ('>>')
+   !b - outputs the filename base
+   !b - outputs the absolute filename minus the extensions
+   !c - outputs the current working directory
+   !d - outputs the file timestamp date in the format 'YYMMSS'
+   !D - outputs the file timestamp date in the format 'YYYY/MM/SS'
+   !f - outputs the absolute filename (i.e., with the full path specification)
+   !i - outputs the input redirector ('<')
+   !n - outputs the OS-specific line ending
+   !o - outputs the output redirector ('>')
+   !P - outputs the current absolute directory
+   !p - outputs the current file relative path'
+   !q - outputs the double-quote character ('"')
+   !r - outputs the relative filename (i.e., with the relative path specification)
+   !t - outputs the file timestamp time in the format 'HH:MM'
+   !T - outputs the file timestamp time in the format 'HH:MM:SS'
+   !x - outputs the file extension
+'''
+
+#******************************************************************************
+#
 #  main
 #
 #******************************************************************************
@@ -649,6 +684,7 @@ def main( ):
     parser.add_argument( argumentPrefix + 'y', '--find_dupes', action='store_true' )
     parser.add_argument( argumentPrefix + 'z', '--print_command_only', action='store_true' )
     parser.add_argument( argumentPrefix + '?', '--print_help', action='store_true' )
+    parser.add_argument( argumentPrefix + '?!', '--print_bang_help', action='store_true' )
 
     # let's do a little preprocessing of the argument list because argparse is missing a few pieces of functionality
     # the original whereis provided... specifically the ability to determine the order in which arguments occur
@@ -715,6 +751,10 @@ def main( ):
         printHelp( )
         return
 
+    if args.print_bang_help:
+        printBangHelp( )
+        return
+
     if args.version_history:
         printRevisionHistory( )
         return
@@ -760,7 +800,7 @@ def main( ):
 
     maxDepth = args.max_depth
 
-    if args.no_commas or python26:
+    if args.no_commas:
         formatString = 'd'
     else:
         formatString = ',d'
