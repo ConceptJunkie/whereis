@@ -54,8 +54,8 @@ from os.path import join, getsize
 #******************************************************************************
 
 PROGRAM_NAME = 'whereis'
-VERSION = '3.11.1'
-COPYRIGHT_MESSAGE = 'copyright (c) 2019 (1997), Rick Gutleber (rickg@his.com)'
+VERSION = '3.11.2'
+COPYRIGHT_MESSAGE = 'copyright (c) 2020 (1997), Rick Gutleber (rickg@his.com)'
 
 currentDir = ''
 currentDirCount = 0
@@ -267,6 +267,7 @@ revision history:
              directories to search
     3.11.1:  added /?! to display the help file for the /c mini specification
              language, and modified the options to be more consistent
+    3.11.2:  /?! didn't work.  I also changed it to /!.
 
     Known bugs:
         - The original intent was to never have output wrap with /g (according
@@ -491,7 +492,7 @@ command-line options:
     /?, /h, --print_help
         output this help message and exit
 
-    /?!, --print_bang_help
+    /!, --print_bang_help
         output the /c mini-specification help
 
     /1, --find_one
@@ -599,9 +600,8 @@ def printBangHelp( ):
     bangHelpText = \
 '''
    !! - outputs a single '!'
-   !/ - outputs the OS-specific directory separator ('/' or '\\'')
+   !/ - outputs the OS-specific directory separator ('/' or '\\')
    !| - outputs the pipe character ('|')
-
    !0 - outputs the OS-specific file sink ('/dev/null' or 'NUL')
    !a - outputs the output append redirector ('>>')
    !b - outputs the filename base
@@ -621,6 +621,9 @@ def printBangHelp( ):
    !T - outputs the file timestamp time in the format 'HH:MM:SS'
    !x - outputs the file extension
 '''
+
+    print( PROGRAM_NAME + ' ' + VERSION + '\n' + bangHelpText )
+
 
 #******************************************************************************
 #
@@ -684,7 +687,7 @@ def main( ):
     parser.add_argument( argumentPrefix + 'y', '--find_dupes', action='store_true' )
     parser.add_argument( argumentPrefix + 'z', '--print_command_only', action='store_true' )
     parser.add_argument( argumentPrefix + '?', '--print_help', action='store_true' )
-    parser.add_argument( argumentPrefix + '?!', '--print_bang_help', action='store_true' )
+    parser.add_argument( argumentPrefix + '!', '--print_bang_help', action='store_true' )
 
     # let's do a little preprocessing of the argument list because argparse is missing a few pieces of functionality
     # the original whereis provided... specifically the ability to determine the order in which arguments occur
